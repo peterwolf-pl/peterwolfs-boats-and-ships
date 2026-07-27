@@ -1,10 +1,14 @@
 package com.piotrek.peterwolfsboatsandships;
 
+import com.piotrek.peterwolfsboatsandships.block.LighthouseLightBlock;
+import com.piotrek.peterwolfsboatsandships.block.LighthouseLightBlockEntity;
 import com.piotrek.peterwolfsboatsandships.entity.ExplorerSloopEntity;
 import com.piotrek.peterwolfsboatsandships.entity.MerchantSchoonerEntity;
 import com.piotrek.peterwolfsboatsandships.entity.RiverSkiffEntity;
 import com.piotrek.peterwolfsboatsandships.item.ShipItem;
 import com.piotrek.peterwolfsboatsandships.network.ShipInputPayload;
+import java.util.Set;
+import java.util.function.Function;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
@@ -19,10 +23,15 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,10 +53,34 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 	public static final ShipItem EXPLORER_SLOOP_ITEM = registerShipItem("explorer_sloop", level -> new ExplorerSloopEntity(EXPLORER_SLOOP, level));
 	public static final ShipItem MERCHANT_SCHOONER_ITEM = registerShipItem("merchant_schooner", level -> new MerchantSchoonerEntity(MERCHANT_SCHOONER, level));
 
+	public static final LighthouseLightBlock LIGHTHOUSE_LIGHT = registerBlock(
+		"lighthouse_light",
+		key -> new LighthouseLightBlock(BlockBehaviour.Properties.of()
+			.strength(1.5F, 6.0F)
+			.sound(SoundType.LANTERN)
+			.lightLevel(state -> 15)
+			.noOcclusion()
+			.isRedstoneConductor((state, level, pos) -> false)
+			.isSuffocating((state, level, pos) -> false)
+			.isViewBlocking((state, level, pos) -> false)
+			.setId(key))
+	);
+	public static final BlockItem LIGHTHOUSE_LIGHT_ITEM = registerBlockItem("lighthouse_light", LIGHTHOUSE_LIGHT);
+	public static final BlockEntityType<LighthouseLightBlockEntity> LIGHTHOUSE_LIGHT_BLOCK_ENTITY = Registry.register(
+		BuiltInRegistries.BLOCK_ENTITY_TYPE,
+		id("lighthouse_light"),
+		new BlockEntityType<>(LighthouseLightBlockEntity::new, Set.of(LIGHTHOUSE_LIGHT))
+	);
+
 	public static final CreativeModeTab SHIPS_TAB = FabricCreativeModeTab.builder()
 		.title(Component.translatable("itemGroup.peterwolfs_boats_and_ships.group"))
 		.icon(RIVER_SKIFF_ITEM::getDefaultInstance)
-		.displayItems((parameters, output) -> { output.accept(RIVER_SKIFF_ITEM); output.accept(EXPLORER_SLOOP_ITEM); output.accept(MERCHANT_SCHOONER_ITEM); })
+		.displayItems((parameters, output) -> {
+			output.accept(RIVER_SKIFF_ITEM);
+			output.accept(EXPLORER_SLOOP_ITEM);
+			output.accept(MERCHANT_SCHOONER_ITEM);
+			output.accept(LIGHTHOUSE_LIGHT_ITEM);
+		})
 		.build();
 
 	@Override
@@ -60,6 +93,9 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 			output.insertAfter(RIVER_SKIFF_ITEM, EXPLORER_SLOOP_ITEM);
 			output.insertAfter(EXPLORER_SLOOP_ITEM, MERCHANT_SCHOONER_ITEM);
 		});
+		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(output -> {
+			output.accept(LIGHTHOUSE_LIGHT_ITEM);
+		});
 		PayloadTypeRegistry.serverboundPlay().register(ShipInputPayload.TYPE, ShipInputPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(ShipInputPayload.TYPE, (payload, context) -> context.server().execute(() -> {
 			ServerPlayer player = context.player();
@@ -69,9 +105,23 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 	}
 
 	private static ResourceKey<EntityType<?>> entityKey(String path) { return ResourceKey.create(Registries.ENTITY_TYPE, id(path)); }
+
 	private static ShipItem registerShipItem(String path, java.util.function.Function<net.minecraft.world.level.Level, ? extends com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity> factory) {
 		ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id(path));
 		return Registry.register(BuiltInRegistries.ITEM, key, new ShipItem(new Item.Properties().setId(key).stacksTo(1), factory));
 	}
+
+	private static <T extends Block> T registerBlock(final String path, final Function<ResourceKey<Block>, T> factory) {
+		ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, id(path));
+		return Registry.register(BuiltInRegistries.BLOCK, key, factory.apply(key));
+	}
+
+	private static BlockItem registerBlockItem(final String path, final Block block) {
+		ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id(path));
+		BlockItem item = new BlockItem(block, new Item.Properties().setId(key).useBlockDescriptionPrefix());
+		item.registerBlocks(Item.BY_BLOCK, item);
+		return Registry.register(BuiltInRegistries.ITEM, key, item);
+	}
+
 	public static Identifier id(String path) { return Identifier.fromNamespaceAndPath(MOD_ID, path); }
 }

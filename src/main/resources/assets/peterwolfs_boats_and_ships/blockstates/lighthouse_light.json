@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "flashing=false": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" },
+    "flashing=true": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" }
+  }
+}

@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.ModelLayerRegistry;
 import net.minecraft.client.model.geom.ModelLayerLocation;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.resources.Identifier;
 
 public final class PeterwolfsBoatsAndShipsClient implements ClientModInitializer {
@@ -41,6 +42,7 @@ public final class PeterwolfsBoatsAndShipsClient implements ClientModInitializer
 		ModelLayerRegistry.registerModelLayer(RIVER_SKIFF_LAYER, ShipModel::createRiverSkiffLayer);
 		ModelLayerRegistry.registerModelLayer(EXPLORER_SLOOP_LAYER, ShipModel::createExplorerSloopLayer);
 		ModelLayerRegistry.registerModelLayer(MERCHANT_SCHOONER_LAYER, ShipModel::createMerchantSchoonerLayer);
+		BlockEntityRenderers.register(PeterwolfsBoatsAndShipsMod.LIGHTHOUSE_LIGHT_BLOCK_ENTITY, LighthouseLightRenderer::new);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (client.player != null && client.player.getVehicle() instanceof AbstractShipEntity) {
 				long now = System.currentTimeMillis();

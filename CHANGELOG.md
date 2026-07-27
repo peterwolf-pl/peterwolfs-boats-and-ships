@@ -5,6 +5,8 @@
 - Double-tap `W` while captaining for a temporary speed boost (higher acceleration and max speed while held).
 - Double-tap `A` or `D` for a much sharper turn rate while the key is held.
 - Sharp turns lean the hull up to 30° opposite the turn direction (sails and oars follow the heel).
+- Added **Lighthouse Light** block item: craft with 6 lanterns + 3 gold ingots. Emits full block light and a rotating dual spotlight beam visible far beyond normal block render distance.
+- Lighthouse Light right-click toggles rotating spotlight vs blinking flash; beam visibility is reduced by day and full at night.
 
 ## 1.0.4
 

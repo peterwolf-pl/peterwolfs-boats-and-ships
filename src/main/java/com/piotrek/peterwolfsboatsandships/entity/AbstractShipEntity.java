@@ -215,11 +215,12 @@ public abstract class AbstractShipEntity extends Entity {
 		float rudder = this.getRudder();
 		float targetHeel;
 		if (Math.abs(rudder) > 1.01F) {
-			// Double-tap A/D: lean up to 30° opposite the turn direction.
+			// Double-tap A/D: lean up to 30° opposite the turn (outward heel).
 			float lean = Mth.clamp(speed * 40.0F, 10.0F, SHARP_TURN_HEEL_DEG);
-			targetHeel = -Math.signum(rudder) * lean;
+			targetHeel = Math.signum(rudder) * lean;
 		} else {
-			targetHeel = -rudder * Mth.clamp(speed * 22.0F, 0.0F, this.hasSails() ? 9.0F : 6.0F);
+			// Positive rudder (D/right) banks left visually, and vice versa.
+			targetHeel = rudder * Mth.clamp(speed * 22.0F, 0.0F, this.hasSails() ? 9.0F : 6.0F);
 		}
 		// Snap into sharp heel a bit faster so the double-tap feel is immediate.
 		float heelLerp = Math.abs(rudder) > 1.01F ? 0.35F : 0.22F;

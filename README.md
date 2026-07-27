@@ -14,6 +14,10 @@ Fabric mod for Minecraft 26.2 adding three original, wooden, survival-friendly w
 
 Place a vessel on water with its item, then use it to board. The first passenger is captain. `W`/`S` apply forward/reverse thrust; `A`/`D` steer. **Double-tap `W`** while sailing for a speed boost; **double-tap `A` or `D`** for a much sharper turn (the hull heels up to ~30° opposite the turn). Hold sneak while using the Sloop or Schooner to open its cargo hold. Movement simulation and collision handling are executed on the server; the client only submits captain input and interpolates hull heel, sail and oar animation.
 
+## Lighthouse Light
+
+Craft a **Lighthouse Light** (`6× lantern` + `3× gold ingot`) to crown a coastal tower. The block gives light level 15 and projects a dual spotlight beam that remains readable from open water well beyond ordinary block draw distance (beacon-style long-range rendering). Beams are faint by day and strong at night. **Right-click** toggles between a rotating spotlight and a blinking flash (vertical pillar + cardinal rays).
+
 ## Installation
 
 Install Fabric Loader 0.19.3 for Minecraft 26.2, Fabric API 0.153.0+26.2, and Java 25. Place `peterwolfs-boats-and-ships-1.0.4.jar` in the instance `mods` folder.

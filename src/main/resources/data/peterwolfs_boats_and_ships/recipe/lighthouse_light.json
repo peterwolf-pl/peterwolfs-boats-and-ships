@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "LLL",
+    "GGG",
+    "LLL"
+  ],
+  "key": {
+    "L": "minecraft:lantern",
+    "G": "minecraft:gold_ingot"
+  },
+  "result": {
+    "id": "peterwolfs_boats_and_ships:lighthouse_light",
+    "count": 1
+  }
+}
