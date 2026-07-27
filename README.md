@@ -12,7 +12,7 @@ Fabric mod for Minecraft 26.2 adding three original, wooden, survival-friendly w
 
 ## Controls
 
-Place a vessel on water with its item, then use it to board. The first passenger is captain. `W`/`S` apply forward/reverse thrust; `A`/`D` steer. Hold sneak while using the Sloop or Schooner to open its cargo hold. Movement simulation and collision handling are executed on the server; the client only submits captain input and interpolates hull heel, sail and oar animation.
+Place a vessel on water with its item, then use it to board. The first passenger is captain. `W`/`S` apply forward/reverse thrust; `A`/`D` steer. **Double-tap `W`** while sailing for a speed boost; **double-tap `A` or `D`** for a much sharper turn (the hull heels up to ~30° opposite the turn). Hold sneak while using the Sloop or Schooner to open its cargo hold. Movement simulation and collision handling are executed on the server; the client only submits captain input and interpolates hull heel, sail and oar animation.
 
 ## Installation
 

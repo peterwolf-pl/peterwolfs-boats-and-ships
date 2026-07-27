@@ -138,7 +138,9 @@ public final class ShipModel extends EntityModel<ShipRenderState> {
 	@Override
 	public void setupAnim(ShipRenderState state) {
 		super.setupAnim(state);
-		this.hull.zRot = (float) Math.toRadians(state.heel);
+		// Heel is applied to the whole vessel (hull, sails, oars) so sharp-turn lean stays coherent.
+		float heelRad = (float) Math.toRadians(state.heel);
+		this.hull.zRot = heelRad;
 
 		// Furled sails logic: when stationary (speed <= 0.015F), sails furl/roll up directly under yardarms
 		boolean isMoving = state.speed > 0.015F;
@@ -148,19 +150,19 @@ public final class ShipModel extends EntityModel<ShipRenderState> {
 		this.sailTwo.yScale = sailUnfold;
 
 		if (isMoving) {
-			this.sail.zRot = (float) Math.sin(state.sailPhase) * 0.075F;
-			this.sailTwo.zRot = (float) Math.sin(state.sailPhase + 0.8F) * 0.065F;
+			this.sail.zRot = heelRad + (float) Math.sin(state.sailPhase) * 0.075F;
+			this.sailTwo.zRot = heelRad + (float) Math.sin(state.sailPhase + 0.8F) * 0.065F;
 		} else {
-			this.sail.zRot = 0.0F;
-			this.sailTwo.zRot = 0.0F;
+			this.sail.zRot = heelRad;
+			this.sailTwo.zRot = heelRad;
 		}
 
 		// Downward oar tilt & rowing motion
 		float strokeSwing = (float) Math.sin(state.oarPhase) * 0.38F;
 		float strokeDip = (float) Math.cos(state.oarPhase) * 0.18F;
 
-		this.leftOar.zRot = -0.46F - strokeDip;
-		this.rightOar.zRot = 0.46F + strokeDip;
+		this.leftOar.zRot = heelRad - 0.46F - strokeDip;
+		this.rightOar.zRot = heelRad + 0.46F + strokeDip;
 		this.leftOar.yRot = strokeSwing;
 		this.rightOar.yRot = -strokeSwing;
 		this.leftOar.xRot = (float) Math.sin(state.oarPhase) * 0.10F;

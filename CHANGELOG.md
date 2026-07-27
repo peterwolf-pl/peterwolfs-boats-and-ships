@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Double-tap `W` while captaining for a temporary speed boost (higher acceleration and max speed while held).
+- Double-tap `A` or `D` for a much sharper turn rate while the key is held.
+- Sharp turns lean the hull up to 30° opposite the turn direction (sails and oars follow the heel).
+
 ## 1.0.4
 
 - Added furled sails when stationary: sails automatically roll up under yardarms when ships are at rest, and unfurl fully when moving.

@@ -41,12 +41,24 @@ public abstract class AbstractShipEntity extends Entity {
 	private static final EntityDataAccessor<Float> THRUST = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
 	private static final EntityDataAccessor<Float> RUDDER = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
 
+	/** Double-tap W may send thrust above 1.0; keep room for that. */
+	public static final float MAX_THRUST = 1.75F;
+	/** Double-tap A/D may send |rudder| above 1.0 for a sharp turn. */
+	public static final float MAX_RUDDER = 2.5F;
+	/** Heel (degrees) opposite the turn while sharp-turn boost is active. */
+	private static final float SHARP_TURN_HEEL_DEG = 30.0F;
+	/** How long (ticks) a client packet keeps control authority vs vanilla fallback. */
+	private static final int INPUT_FRESH_TICKS = 10;
+	/** Speed multiplier while double-tap W boost is held. */
+	private static final double BOOST_SPEED_MULT = 1.5D;
+
 	private float visualHeel;
 	private float visualHeelO;
 	private float sailPhase;
 	private float sailPhaseO;
 	private float oarPhase;
 	private float oarPhaseO;
+	private int inputFreshTicks;
 	private final SimpleContainer cargo;
 	// Entity itself has no interpolation handler in 26.2. A server-authoritative
 	// vehicle must provide one or client position packets are not blended/applied
@@ -78,9 +90,21 @@ public abstract class AbstractShipEntity extends Entity {
 		ContainerHelper.saveAllItems(output, this.cargo.getItems());
 	}
 
+	/** Client packet path: marks input as fresh so boost magnitudes are not overwritten. */
 	public final void setControl(float thrust, float rudder) {
-		this.entityData.set(THRUST, Mth.clamp(Float.isFinite(thrust) ? thrust : 0.0F, -0.55F, 1.0F));
-		this.entityData.set(RUDDER, Mth.clamp(Float.isFinite(rudder) ? rudder : 0.0F, -1.0F, 1.0F));
+		this.applyControl(thrust, rudder);
+		this.inputFreshTicks = INPUT_FRESH_TICKS;
+	}
+
+	private void applyControl(float thrust, float rudder) {
+		this.entityData.set(THRUST, Mth.clamp(Float.isFinite(thrust) ? thrust : 0.0F, -0.55F, MAX_THRUST));
+		this.entityData.set(RUDDER, Mth.clamp(Float.isFinite(rudder) ? rudder : 0.0F, -MAX_RUDDER, MAX_RUDDER));
+	}
+
+	private void clearControl() {
+		this.entityData.set(THRUST, 0.0F);
+		this.entityData.set(RUDDER, 0.0F);
+		this.inputFreshTicks = 0;
 	}
 
 	public final float getThrust() { return this.entityData.get(THRUST); }
@@ -111,15 +135,19 @@ public abstract class AbstractShipEntity extends Entity {
 
 	private void tickServerPhysics() {
 		Entity captain = this.getFirstPassenger();
-		if (captain instanceof ServerPlayer player) {
-			// This is the actual server-side representation of the WASD packet.
+		if (!(captain instanceof ServerPlayer player)) {
+			this.clearControl();
+		} else if (this.inputFreshTicks > 0) {
+			// Prefer captain packets so double-tap boost magnitudes survive.
+			this.inputFreshTicks--;
+		} else {
+			// Fallback when client packets are missing (e.g. brief desync).
 			// Player.zza/xxa are not updated while an entity is being ridden.
+			// Do not mark input fresh — re-sample vanilla each tick until packets resume.
 			var input = player.getLastClientInput();
 			float thrust = input.forward() ? 1.0F : input.backward() ? -0.55F : 0.0F;
 			float rudder = input.left() ? -1.0F : input.right() ? 1.0F : 0.0F;
-			this.setControl(thrust, rudder);
-		} else {
-			this.setControl(0.0F, 0.0F);
+			this.applyControl(thrust, rudder);
 		}
 		double surface = this.findWaterSurface();
 		if (Double.isNaN(surface)) {
@@ -131,11 +159,17 @@ public abstract class AbstractShipEntity extends Entity {
 		this.setPos(this.getX(), surface - 0.28D, this.getZ());
 		Vec3 heading = this.heading();
 		double speed = this.getDeltaMovement().dot(heading);
-		double input = this.getThrust();
-		speed += input * this.acceleration();
-		speed *= 0.985D - Math.min(0.05D, Math.abs(this.getRudder()) * 0.015D);
-		speed = Mth.clamp(speed, -this.maxSpeed() * 0.36D, this.maxSpeed());
+		float thrust = this.getThrust();
+		boolean speedBoost = thrust > 1.01F;
+		// Boost multiplies acceleration; reverse stays at the clamped negative value.
+		speed += thrust * this.acceleration();
+		float rudderAbs = Math.abs(this.getRudder());
+		// Cap drag contribution so sharp-turn rudder does not stall the hull.
+		speed *= 0.985D - Math.min(0.05D, Math.min(rudderAbs, 1.0F) * 0.015D);
+		double maxSpd = this.maxSpeed() * (speedBoost ? BOOST_SPEED_MULT : 1.0D);
+		speed = Mth.clamp(speed, -this.maxSpeed() * 0.36D, maxSpd);
 		if (Math.abs(speed) < 0.003D) speed = 0.0D;
+		// |rudder| > 1 (double-tap A/D) scales turn rate up to MAX_RUDDER for a much sharper turn.
 		float steering = this.getRudder() * this.turnRate() * (float) Mth.clamp(Math.abs(speed) / this.maxSpeed(), 0.18D, 1.0D);
 		this.setShipYaw(this.getYRot() + steering);
 		heading = this.heading();
@@ -178,8 +212,18 @@ public abstract class AbstractShipEntity extends Entity {
 		this.sailPhaseO = this.sailPhase;
 		this.oarPhaseO = this.oarPhase;
 		float speed = (float) this.getHorizontalSpeed();
-		float targetHeel = -this.getRudder() * Mth.clamp(speed * 22.0F, 0.0F, this.hasSails() ? 9.0F : 6.0F);
-		this.visualHeel = Mth.lerp(0.22F, this.visualHeel, targetHeel);
+		float rudder = this.getRudder();
+		float targetHeel;
+		if (Math.abs(rudder) > 1.01F) {
+			// Double-tap A/D: lean up to 30° opposite the turn direction.
+			float lean = Mth.clamp(speed * 40.0F, 10.0F, SHARP_TURN_HEEL_DEG);
+			targetHeel = -Math.signum(rudder) * lean;
+		} else {
+			targetHeel = -rudder * Mth.clamp(speed * 22.0F, 0.0F, this.hasSails() ? 9.0F : 6.0F);
+		}
+		// Snap into sharp heel a bit faster so the double-tap feel is immediate.
+		float heelLerp = Math.abs(rudder) > 1.01F ? 0.35F : 0.22F;
+		this.visualHeel = Mth.lerp(heelLerp, this.visualHeel, targetHeel);
 		this.sailPhase += this.hasSails() ? 0.055F + speed * 0.42F : 0.0F;
 		if (!this.hasSails() && speed > 0.015F) {
 			this.oarPhase += 0.12F + speed * 1.4F;
