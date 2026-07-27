@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "peterwolfs_boats_and_ships",
+  "version": "${version}",
+  "name": "Peterwolf's Minecraft Boats and Ships",
+  "description": "Steerable wooden boats and sailing ships with server-authoritative movement.",
+  "authors": ["Piotrek"],
+  "license": "CC0-1.0",
+  "environment": "*",
+  "icon": "assets/peterwolfs_boats_and_ships/icon.png",
+  "custom": { "modmenu": { "banner": "assets/peterwolfs_boats_and_ships/banner.png" } },
+  "entrypoints": {
+    "main": ["com.piotrek.peterwolfsboatsandships.PeterwolfsBoatsAndShipsMod"],
+    "client": ["com.piotrek.peterwolfsboatsandships.client.PeterwolfsBoatsAndShipsClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

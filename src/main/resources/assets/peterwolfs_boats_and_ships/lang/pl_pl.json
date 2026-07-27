@@ -1,0 +1,11 @@
+{
+  "itemGroup.peterwolfs_boats_and_ships.group": "Łodzie i statki Peterwolfa",
+  "item.peterwolfs_boats_and_ships.river_skiff": "Rzeczny Skiff",
+  "item.peterwolfs_boats_and_ships.explorer_sloop": "Slup Odkrywcy",
+  "item.peterwolfs_boats_and_ships.merchant_schooner": "Szkuner Kupiecki",
+  "entity.peterwolfs_boats_and_ships.river_skiff": "Rzeczny Skiff",
+  "entity.peterwolfs_boats_and_ships.explorer_sloop": "Slup Odkrywcy",
+  "entity.peterwolfs_boats_and_ships.merchant_schooner": "Szkuner Kupiecki",
+  "container.peterwolfs_boats_and_ships.explorer_sloop": "Schowek slupa odkrywcy",
+  "container.peterwolfs_boats_and_ships.merchant_schooner": "Ładownia szkunera kupieckiego"
+}

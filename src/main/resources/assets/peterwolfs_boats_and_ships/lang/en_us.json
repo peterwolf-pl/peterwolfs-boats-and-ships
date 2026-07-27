@@ -1,0 +1,11 @@
+{
+  "itemGroup.peterwolfs_boats_and_ships.group": "Peterwolf's Boats & Ships",
+  "item.peterwolfs_boats_and_ships.river_skiff": "River Skiff",
+  "item.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop",
+  "item.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner",
+  "entity.peterwolfs_boats_and_ships.river_skiff": "River Skiff",
+  "entity.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop",
+  "entity.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner",
+  "container.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop Locker",
+  "container.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner Hold"
+}
