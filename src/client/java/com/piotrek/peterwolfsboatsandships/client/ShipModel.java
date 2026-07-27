@@ -10,7 +10,7 @@ import net.minecraft.client.model.geom.builders.PartDefinition;
 
 /**
  * Three distinct layer definitions for River Skiff, Explorer Sloop, and Merchant Schooner.
- * Sails are anchored directly beneath the wooden yardarms (reje) on the masts.
+ * Yardarms and sails are positioned 1 block (16 units) higher up on the masts.
  */
 public final class ShipModel extends EntityModel<ShipRenderState> {
 	private final ModelPart hull;
@@ -81,13 +81,13 @@ public final class ShipModel extends EntityModel<ShipRenderState> {
 			.texOffs(140, 212).addBox(-5.0F, -20.0F, 22.0F, 10.0F, 10.0F, 1.0F) // Helm wheel
 			.texOffs(164, 212).addBox(-5.0F, -13.0F, -2.0F, 10.0F, 8.0F, 8.0F) // Chest
 			.texOffs(202, 212).addBox(-15.0F, -18.0F, -10.0F, 3.0F, 5.0F, 3.0F) // Lantern
-			.texOffs(0, 230).addBox(-2.5F, -50.0F, -10.0F, 5.0F, 46.0F, 5.0F) // Mainmast (5x5)
-			.texOffs(22, 230).addBox(-1.5F, -60.0F, -9.0F, 3.0F, 10.0F, 3.0F) // Thinner Topmast Extension (3x3)
-			.texOffs(36, 230).addBox(-18.0F, -51.0F, -11.0F, 36.0F, 3.0F, 3.0F), PartPose.offset(0.0F, 24.0F, 0.0F)); // Yardarm at top of mainmast (Y=-51..-48 inside hull)
+			.texOffs(0, 230).addBox(-2.5F, -66.0F, -10.0F, 5.0F, 62.0F, 5.0F) // Mainmast (5x5, +1 block taller)
+			.texOffs(22, 230).addBox(-1.5F, -76.0F, -9.0F, 3.0F, 10.0F, 3.0F) // Thinner Topmast Extension (3x3)
+			.texOffs(36, 230).addBox(-18.0F, -67.0F, -11.0F, 36.0F, 3.0F, 3.0F), PartPose.offset(0.0F, 24.0F, 0.0F)); // Yardarm (+1 block higher)
 
-		// Sail pivot aligned at bottom of yardarm (Y = 24 - 48 = -26.0F absolute model Y)
+		// Sail pivot shifted +1 block (16 units) higher up
 		root.addOrReplaceChild("sail", CubeListBuilder.create()
-			.texOffs(116, 230).addBox(-16.0F, 0.0F, 0.0F, 32.0F, 30.0F, 1.0F), PartPose.offset(0.0F, -26.0F, -9.0F)); // Hangs DOWN directly beneath yardarm
+			.texOffs(116, 230).addBox(-16.0F, 0.0F, 0.0F, 32.0F, 30.0F, 1.0F), PartPose.offset(0.0F, -42.0F, -9.0F)); // Hangs DOWN directly beneath yardarm
 
 		root.addOrReplaceChild("sail_two", CubeListBuilder.create().texOffs(0, 0).addBox(0.0F, 0.0F, 0.0F, 0.1F, 0.1F, 0.1F), PartPose.ZERO);
 		root.addOrReplaceChild("left_oar", CubeListBuilder.create().texOffs(0, 0).addBox(0.0F, 0.0F, 0.0F, 0.1F, 0.1F, 0.1F), PartPose.ZERO);
@@ -114,20 +114,20 @@ public final class ShipModel extends EntityModel<ShipRenderState> {
 			.texOffs(168, 270).addBox(-10.0F, -13.0F, -12.0F, 8.0F, 8.0F, 8.0F) // Crates stack
 			.texOffs(202, 270).addBox(2.0F, -12.0F, -4.0F, 7.0F, 7.0F, 7.0F) // Barrels stack
 			.texOffs(232, 270).addBox(-2.0F, -22.0F, 35.0F, 4.0F, 6.0F, 4.0F) // Stern lantern
-			.texOffs(0, 296).addBox(-2.5F, -52.0F, -20.0F, 5.0F, 48.0F, 5.0F) // Foremast (5x5)
-			.texOffs(22, 296).addBox(-1.5F, -62.0F, -19.0F, 3.0F, 10.0F, 3.0F) // Thinner Fore-Topmast (3x3)
-			.texOffs(36, 296).addBox(-15.0F, -53.0F, -21.0F, 30.0F, 3.0F, 3.0F) // Foremast Yardarm
-			.texOffs(0, 356).addBox(-2.5F, -58.0F, 6.0F, 5.0F, 54.0F, 5.0F) // Mainmast (5x5)
-			.texOffs(22, 356).addBox(-1.5F, -70.0F, 7.0F, 3.0F, 12.0F, 3.0F) // Thinner Main-Topmast (3x3)
-			.texOffs(36, 356).addBox(-17.0F, -59.0F, 5.0F, 34.0F, 3.0F, 3.0F), PartPose.offset(0.0F, 24.0F, 0.0F)); // Mainmast Yardarm
+			.texOffs(0, 296).addBox(-2.5F, -68.0F, -20.0F, 5.0F, 64.0F, 5.0F) // Foremast (5x5, +1 block taller)
+			.texOffs(22, 296).addBox(-1.5F, -78.0F, -19.0F, 3.0F, 10.0F, 3.0F) // Thinner Fore-Topmast (3x3)
+			.texOffs(36, 296).addBox(-15.0F, -69.0F, -21.0F, 30.0F, 3.0F, 3.0F) // Foremast Yardarm
+			.texOffs(0, 356).addBox(-2.5F, -74.0F, 6.0F, 5.0F, 70.0F, 5.0F) // Mainmast (5x5, +1 block taller)
+			.texOffs(22, 356).addBox(-1.5F, -86.0F, 7.0F, 3.0F, 12.0F, 3.0F) // Thinner Main-Topmast (3x3)
+			.texOffs(36, 356).addBox(-17.0F, -75.0F, 5.0F, 34.0F, 3.0F, 3.0F), PartPose.offset(0.0F, 24.0F, 0.0F)); // Mainmast Yardarm
 
-		// Foresail pivot aligned beneath fore-yardarm (Y = 24 - 50 = -26.0F)
+		// Foresail pivot shifted +1 block (16 units) higher up
 		root.addOrReplaceChild("sail", CubeListBuilder.create()
-			.texOffs(104, 296).addBox(-15.0F, 0.0F, 0.0F, 30.0F, 32.0F, 1.0F), PartPose.offset(0.0F, -26.0F, -19.0F));
+			.texOffs(104, 296).addBox(-15.0F, 0.0F, 0.0F, 30.0F, 32.0F, 1.0F), PartPose.offset(0.0F, -42.0F, -19.0F));
 
-		// Mainsail pivot aligned beneath main-yardarm (Y = 24 - 56 = -32.0F)
+		// Mainsail pivot shifted +1 block (16 units) higher up
 		root.addOrReplaceChild("sail_two", CubeListBuilder.create()
-			.texOffs(112, 356).addBox(-17.0F, 0.0F, 0.0F, 34.0F, 38.0F, 1.0F), PartPose.offset(0.0F, -32.0F, 7.0F));
+			.texOffs(112, 356).addBox(-17.0F, 0.0F, 0.0F, 34.0F, 38.0F, 1.0F), PartPose.offset(0.0F, -48.0F, 7.0F));
 
 		root.addOrReplaceChild("left_oar", CubeListBuilder.create().texOffs(0, 0).addBox(0.0F, 0.0F, 0.0F, 0.1F, 0.1F, 0.1F), PartPose.ZERO);
 		root.addOrReplaceChild("right_oar", CubeListBuilder.create().texOffs(0, 0).addBox(0.0F, 0.0F, 0.0F, 0.1F, 0.1F, 0.1F), PartPose.ZERO);
