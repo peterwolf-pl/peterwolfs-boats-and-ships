@@ -1,6 +1,7 @@
 package com.piotrek.peterwolfsboatsandships.block;
 
 import com.mojang.serialization.MapCodec;
+import com.piotrek.peterwolfsboatsandships.PeterwolfsBoatsAndShipsMod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,29 +15,41 @@ import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Powerful lighthouse lamp: local block light 15 plus a client-side rotating
- * spotlight (or blinking flash) beam visible far beyond normal block draw distance.
- * Right-click toggles between sweeping spot ray and blinking flash.
+ * Lighthouse lamp. Right-click cycles: rotating spot ray → blinking point light → off.
  */
 public final class LighthouseLightBlock extends BaseEntityBlock {
 	public static final MapCodec<LighthouseLightBlock> CODEC = simpleCodec(LighthouseLightBlock::new);
-	/** false = rotating spot ray, true = blinking flash light. */
-	public static final BooleanProperty FLASHING = BooleanProperty.create("flashing");
+	public static final EnumProperty<LighthouseLightMode> MODE = EnumProperty.create("mode", LighthouseLightMode.class);
+	/** Flash phase only: bright when true, dark when false. Spot keeps lit; off keeps unlit. */
+	public static final BooleanProperty LIT = BooleanProperty.create("lit");
 	private static final VoxelShape SHAPE = Block.box(3.0D, 0.0D, 3.0D, 13.0D, 16.0D, 13.0D);
 
 	public LighthouseLightBlock(final BlockBehaviour.Properties properties) {
 		super(properties);
-		this.registerDefaultState(this.stateDefinition.any().setValue(FLASHING, false));
+		this.registerDefaultState(this.stateDefinition.any()
+			.setValue(MODE, LighthouseLightMode.SPOT)
+			.setValue(LIT, true));
+	}
+
+	public static int lightEmission(final BlockState state) {
+		return switch (state.getValue(MODE)) {
+			case SPOT -> 15;
+			case FLASH -> state.getValue(LIT) ? 15 : 0;
+			case OFF -> 0;
+		};
 	}
 
 	@Override
@@ -46,7 +59,7 @@ public final class LighthouseLightBlock extends BaseEntityBlock {
 
 	@Override
 	protected void createBlockStateDefinition(final StateDefinition.Builder<Block, BlockState> builder) {
-		builder.add(FLASHING);
+		builder.add(MODE, LIT);
 	}
 
 	@Override
@@ -67,10 +80,10 @@ public final class LighthouseLightBlock extends BaseEntityBlock {
 		final Player player,
 		final BlockHitResult hitResult
 	) {
-		return this.toggleMode(state, level, pos, player);
+		return this.cycleMode(state, level, pos, player);
 	}
 
-	private InteractionResult toggleMode(
+	private InteractionResult cycleMode(
 		final BlockState state,
 		final Level level,
 		final BlockPos pos,
@@ -79,23 +92,18 @@ public final class LighthouseLightBlock extends BaseEntityBlock {
 		if (level.isClientSide()) {
 			return InteractionResult.SUCCESS;
 		}
-		boolean nextFlashing = !state.getValue(FLASHING);
-		level.setBlock(pos, state.setValue(FLASHING, nextFlashing), Block.UPDATE_ALL);
-		level.playSound(
-			null,
-			pos,
-			SoundEvents.LEVER_CLICK,
-			SoundSource.BLOCKS,
-			0.4F,
-			nextFlashing ? 0.7F : 1.05F
-		);
+		LighthouseLightMode next = state.getValue(MODE).next();
+		boolean lit = next != LighthouseLightMode.OFF;
+		level.setBlock(pos, state.setValue(MODE, next).setValue(LIT, lit), Block.UPDATE_ALL);
+		float pitch = switch (next) {
+			case SPOT -> 1.05F;
+			case FLASH -> 0.85F;
+			case OFF -> 0.55F;
+		};
+		level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 0.4F, pitch);
 		if (player instanceof ServerPlayer serverPlayer) {
 			serverPlayer.sendSystemMessage(
-				Component.translatable(
-					nextFlashing
-						? "message.peterwolfs_boats_and_ships.lighthouse_flash"
-						: "message.peterwolfs_boats_and_ships.lighthouse_spot"
-				),
+				Component.translatable("message.peterwolfs_boats_and_ships.lighthouse_" + next.getSerializedName()),
 				true
 			);
 		}
@@ -106,5 +114,13 @@ public final class LighthouseLightBlock extends BaseEntityBlock {
 	@Override
 	public BlockEntity newBlockEntity(final BlockPos pos, final BlockState state) {
 		return new LighthouseLightBlockEntity(pos, state);
+	}
+
+	@Nullable
+	@Override
+	public <T extends BlockEntity> BlockEntityTicker<T> getTicker(final Level level, final BlockState state, final BlockEntityType<T> type) {
+		return level.isClientSide()
+			? null
+			: createTickerHelper(type, PeterwolfsBoatsAndShipsMod.LIGHTHOUSE_LIGHT_BLOCK_ENTITY, LighthouseLightBlockEntity::serverTick);
 	}
 }

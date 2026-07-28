@@ -1,8 +1,10 @@
 package com.piotrek.peterwolfsboatsandships.entity;
 
-import com.piotrek.peterwolfsboatsandships.PeterwolfsBoatsAndShipsMod;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -30,16 +32,22 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Shared hull physics. This deliberately never grants client movement authority:
  * client packets set captain intent and the dedicated server moves the vessel.
+ *
+ * <p>Boarding is automatic when a player steps onto the deck. Right-click claims
+ * the helm for steering; sneak + right-click opens cargo on ships that have it.
  */
 public abstract class AbstractShipEntity extends Entity {
 	private static final EntityDataAccessor<Float> THRUST = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
 	private static final EntityDataAccessor<Float> RUDDER = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
+	/** Entity id of the player who claimed the helm, or -1 when nobody is steering. */
+	private static final EntityDataAccessor<Integer> HELMSMAN_ID = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.INT);
 
 	/** Double-tap W may send thrust above 1.0; keep room for that. */
 	public static final float MAX_THRUST = 1.75F;
@@ -59,6 +67,9 @@ public abstract class AbstractShipEntity extends Entity {
 	private float oarPhase;
 	private float oarPhaseO;
 	private int inputFreshTicks;
+	/** Stable helmsman identity across entity-id reuse / reloads. */
+	@Nullable
+	private UUID helmsmanUuid;
 	private final SimpleContainer cargo;
 	// Entity itself has no interpolation handler in 26.2. A server-authoritative
 	// vehicle must provide one or client position packets are not blended/applied
@@ -75,12 +86,16 @@ public abstract class AbstractShipEntity extends Entity {
 	protected void defineSynchedData(SynchedEntityData.Builder builder) {
 		builder.define(THRUST, 0.0F);
 		builder.define(RUDDER, 0.0F);
+		builder.define(HELMSMAN_ID, -1);
 	}
 
 	@Override
 	protected void readAdditionalSaveData(ValueInput input) {
 		this.setControl(input.getFloatOr("Thrust", 0.0F), input.getFloatOr("Rudder", 0.0F));
 		ContainerHelper.loadAllItems(input, this.cargo.getItems());
+		Optional<UUID> savedHelmsman = input.read("Helmsman", UUIDUtil.CODEC);
+		this.helmsmanUuid = savedHelmsman.orElse(null);
+		this.entityData.set(HELMSMAN_ID, -1);
 	}
 
 	@Override
@@ -88,6 +103,9 @@ public abstract class AbstractShipEntity extends Entity {
 		output.putFloat("Thrust", this.getThrust());
 		output.putFloat("Rudder", this.getRudder());
 		ContainerHelper.saveAllItems(output, this.cargo.getItems());
+		if (this.helmsmanUuid != null) {
+			output.store("Helmsman", UUIDUtil.CODEC, this.helmsmanUuid);
+		}
 	}
 
 	/** Client packet path: marks input as fresh so boost magnitudes are not overwritten. */
@@ -114,6 +132,51 @@ public abstract class AbstractShipEntity extends Entity {
 	public final float getOarPhase(float partialTick) { return Mth.lerp(partialTick, this.oarPhaseO, this.oarPhase); }
 	public final double getHorizontalSpeed() { Vec3 velocity = this.getDeltaMovement(); return Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z); }
 
+	/** True when this entity is the player who claimed the helm (right-click). */
+	public final boolean isHelmsman(Entity entity) {
+		return entity != null && entity.getId() == this.entityData.get(HELMSMAN_ID);
+	}
+
+	@Nullable
+	public final Entity getHelmsman() {
+		int id = this.entityData.get(HELMSMAN_ID);
+		if (id < 0) return null;
+		return this.level().getEntity(id);
+	}
+
+	private void setHelmsman(@Nullable Player player) {
+		if (player == null) {
+			this.helmsmanUuid = null;
+			this.entityData.set(HELMSMAN_ID, -1);
+			this.clearControl();
+			return;
+		}
+		this.helmsmanUuid = player.getUUID();
+		this.entityData.set(HELMSMAN_ID, player.getId());
+	}
+
+	/** Keep synched helmsman entity id in sync with the saved UUID among passengers. */
+	private void refreshHelmsmanSync() {
+		if (this.helmsmanUuid == null) {
+			if (this.entityData.get(HELMSMAN_ID) != -1) {
+				this.entityData.set(HELMSMAN_ID, -1);
+			}
+			return;
+		}
+		for (Entity passenger : this.getPassengers()) {
+			if (this.helmsmanUuid.equals(passenger.getUUID())) {
+				if (this.entityData.get(HELMSMAN_ID) != passenger.getId()) {
+					this.entityData.set(HELMSMAN_ID, passenger.getId());
+				}
+				return;
+			}
+		}
+		// Helmsman left the vessel.
+		this.helmsmanUuid = null;
+		this.entityData.set(HELMSMAN_ID, -1);
+		this.clearControl();
+	}
+
 	protected abstract int seatCount();
 	protected abstract double maxSpeed();
 	protected abstract double acceleration();
@@ -130,12 +193,39 @@ public abstract class AbstractShipEntity extends Entity {
 			this.tickClientVisuals();
 			return;
 		}
+		this.refreshHelmsmanSync();
+		this.tryAutoBoard();
 		this.tickServerPhysics();
 	}
 
+	/**
+	 * Step onto the deck to board — no right-click required.
+	 * Sneaking skips auto-board so players can swim past or work near the hull.
+	 */
+	private void tryAutoBoard() {
+		if (this.getPassengers().size() >= this.seatCount()) return;
+		AABB deck = this.getBoundingBox().inflate(0.2D, 0.4D, 0.2D);
+		List<Player> candidates = this.level().getEntitiesOfClass(Player.class, deck, this::canAutoBoard);
+		for (Player player : candidates) {
+			if (this.getPassengers().size() >= this.seatCount()) break;
+			player.startRiding(this);
+		}
+	}
+
+	private boolean canAutoBoard(Player player) {
+		if (player.isSpectator() || player.isPassenger() || player.isShiftKeyDown()) return false;
+		if (!this.canAddPassenger(player)) return false;
+		double dy = player.getY() - this.getY();
+		// Feet on/above the hull — ignore players deep under the keel.
+		if (dy < -0.2D || dy > Math.max(2.2D, this.getBbHeight() + 0.5D)) return false;
+		// Do not yank fully submerged divers from under the ship.
+		if (player.isUnderWater() && dy < 0.15D) return false;
+		return true;
+	}
+
 	private void tickServerPhysics() {
-		Entity captain = this.getFirstPassenger();
-		if (!(captain instanceof ServerPlayer player)) {
+		Entity helmsman = this.getHelmsman();
+		if (!(helmsman instanceof ServerPlayer player)) {
 			this.clearControl();
 		} else if (this.inputFreshTicks > 0) {
 			// Prefer captain packets so double-tap boost magnitudes survive.
@@ -271,15 +361,42 @@ public abstract class AbstractShipEntity extends Entity {
 	}
 
 	@Override
+	protected void removePassenger(Entity passenger) {
+		super.removePassenger(passenger);
+		if (this.helmsmanUuid != null && this.helmsmanUuid.equals(passenger.getUUID())) {
+			this.setHelmsman(null);
+		}
+	}
+
+	@Override
 	protected void positionRider(Entity passenger, MoveFunction moveFunction) {
-		List<Entity> passengers = this.getPassengers();
-		int index = passengers.indexOf(passenger);
+		int index = this.seatIndexFor(passenger);
 		if (index < 0) return;
 		Vec3 seat = this.seatOffset(index);
 		double radians = Math.toRadians(this.getYRot());
 		double x = this.getX() + Math.cos(radians) * seat.x - Math.sin(radians) * seat.z;
 		double z = this.getZ() + Math.sin(radians) * seat.x + Math.cos(radians) * seat.z;
 		moveFunction.accept(passenger, x, this.getY() + seat.y, z);
+	}
+
+	/**
+	 * Helmsman always sits at seat 0 (stern helm). Other passengers fill seats 1+.
+	 * Without a helmsman, boarding order is used as before.
+	 */
+	private int seatIndexFor(Entity passenger) {
+		List<Entity> passengers = this.getPassengers();
+		if (!passengers.contains(passenger)) return -1;
+		if (this.isHelmsman(passenger)) return 0;
+		if (this.getHelmsman() == null) {
+			return passengers.indexOf(passenger);
+		}
+		int crew = 0;
+		for (Entity p : passengers) {
+			if (this.isHelmsman(p)) continue;
+			if (p == passenger) return crew + 1;
+			crew++;
+		}
+		return passengers.indexOf(passenger);
 	}
 
 	protected Vec3 seatOffset(int index) {
@@ -294,9 +411,14 @@ public abstract class AbstractShipEntity extends Entity {
 	@Override
 	@Nullable
 	public LivingEntity getControllingPassenger() {
-		return this.getFirstPassenger() instanceof LivingEntity living ? living : null;
+		Entity helmsman = this.getHelmsman();
+		return helmsman instanceof LivingEntity living ? living : null;
 	}
 
+	/**
+	 * Right-click claims the helm (steering). Sneak + right-click opens cargo.
+	 * Boarding itself is automatic when stepping onto the deck.
+	 */
 	@Override
 	public InteractionResult interact(Player player, InteractionHand hand, Vec3 location) {
 		if (player.isSecondaryUseActive() && this.cargo.getContainerSize() > 0) {
@@ -307,8 +429,21 @@ public abstract class AbstractShipEntity extends Entity {
 			}
 			return InteractionResult.SUCCESS;
 		}
-		if (!this.level().isClientSide()) return player.startRiding(this) ? InteractionResult.CONSUME : InteractionResult.PASS;
+		if (!this.level().isClientSide()) {
+			return this.claimHelm(player) ? InteractionResult.CONSUME : InteractionResult.PASS;
+		}
 		return InteractionResult.SUCCESS;
+	}
+
+	/** Right-click: board if needed and take the helm for WASD steering. */
+	private boolean claimHelm(Player player) {
+		if (player.isSpectator()) return false;
+		if (player.getVehicle() != this) {
+			if (!this.canAddPassenger(player)) return false;
+			if (!player.startRiding(this)) return false;
+		}
+		this.setHelmsman(player);
+		return true;
 	}
 
 	@Override

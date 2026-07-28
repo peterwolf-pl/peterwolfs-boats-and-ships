@@ -58,7 +58,7 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 		key -> new LighthouseLightBlock(BlockBehaviour.Properties.of()
 			.strength(1.5F, 6.0F)
 			.sound(SoundType.LANTERN)
-			.lightLevel(state -> 15)
+			.lightLevel(LighthouseLightBlock::lightEmission)
 			.noOcclusion()
 			.isRedstoneConductor((state, level, pos) -> false)
 			.isSuffocating((state, level, pos) -> false)
@@ -99,7 +99,9 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 		PayloadTypeRegistry.serverboundPlay().register(ShipInputPayload.TYPE, ShipInputPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(ShipInputPayload.TYPE, (payload, context) -> context.server().execute(() -> {
 			ServerPlayer player = context.player();
-			if (player.getVehicle() instanceof com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity ship && ship.getFirstPassenger() == player) ship.setControl(payload.thrust(), payload.rudder());
+			if (player.getVehicle() instanceof com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity ship && ship.isHelmsman(player)) {
+				ship.setControl(payload.thrust(), payload.rudder());
+			}
 		}));
 		LOGGER.info("Peterwolf's Minecraft Boats and Ships is ready to sail.");
 	}

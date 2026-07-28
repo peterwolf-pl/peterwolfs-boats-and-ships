@@ -8,5 +8,6 @@ public final class LighthouseLightRenderState extends BlockEntityRenderState {
 	public float beamRadiusScale = 1.0F;
 	/** Combined day/night + flash pulse alpha multiplier (0..1). */
 	public float beamVisibility = 1.0F;
-	public boolean flashing;
+	/** Only SPOT mode draws the long-range ray. */
+	public boolean showBeam;
 }

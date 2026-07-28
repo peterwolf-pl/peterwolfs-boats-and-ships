@@ -79,7 +79,8 @@ public final class ShipModel extends EntityModel<ShipRenderState> {
 			.texOffs(36, 212).addBox(-15.0F, -9.0F, 14.0F, 30.0F, 4.0F, 14.0F) // Quarterdeck
 			.texOffs(126, 212).addBox(-1.5F, -15.0F, 22.0F, 3.0F, 7.0F, 3.0F) // Helm stand
 			.texOffs(140, 212).addBox(-5.0F, -20.0F, 22.0F, 10.0F, 10.0F, 1.0F) // Helm wheel
-			.texOffs(164, 212).addBox(-5.0F, -13.0F, -2.0F, 10.0F, 8.0F, 8.0F) // Chest
+			.texOffs(164, 212).addBox(-12.0F, -12.0F, -12.0F, 7.0F, 7.0F, 7.0F) // Port barrel (supplies)
+			.texOffs(192, 212).addBox(5.0F, -12.0F, -12.0F, 7.0F, 7.0F, 7.0F) // Starboard barrel (supplies)
 			.texOffs(202, 212).addBox(-15.0F, -18.0F, -10.0F, 3.0F, 5.0F, 3.0F) // Lantern
 			.texOffs(0, 230).addBox(-2.5F, -66.0F, -10.0F, 5.0F, 62.0F, 5.0F) // Mainmast (5x5, +1 block taller)
 			.texOffs(22, 230).addBox(-1.5F, -76.0F, -9.0F, 3.0F, 10.0F, 3.0F) // Thinner Topmast Extension (3x3)
@@ -111,8 +112,11 @@ public final class ShipModel extends EntityModel<ShipRenderState> {
 			.texOffs(160, 190).addBox(16.5F, -14.0F, -39.0F, 3.0F, 2.0F, 76.0F) // Right gunwale
 			.texOffs(0, 270).addBox(-2.5F, -18.0F, -57.0F, 5.0F, 5.0F, 19.0F) // Bowsprit
 			.texOffs(50, 270).addBox(-17.0F, -17.0F, 12.0F, 34.0F, 1.0F, 24.0F) // Quarterdeck roof
-			.texOffs(168, 270).addBox(-10.0F, -13.0F, -12.0F, 8.0F, 8.0F, 8.0F) // Crates stack
-			.texOffs(202, 270).addBox(2.0F, -12.0F, -4.0F, 7.0F, 7.0F, 7.0F) // Barrels stack
+			// Four supply chests around the mainmast (mast box z=6..11, x=-2.5..2.5; cabin starts z=14)
+			.texOffs(168, 270).addBox(-13.0F, -13.0F, 1.0F, 8.0F, 8.0F, 8.0F) // Port-forward chest
+			.texOffs(168, 270).addBox(5.0F, -13.0F, 1.0F, 8.0F, 8.0F, 8.0F) // Starboard-forward chest
+			.texOffs(202, 270).addBox(-13.0F, -13.0F, 10.0F, 8.0F, 8.0F, 8.0F) // Port-aft chest
+			.texOffs(202, 270).addBox(5.0F, -13.0F, 10.0F, 8.0F, 8.0F, 8.0F) // Starboard-aft chest
 			.texOffs(232, 270).addBox(-2.0F, -22.0F, 35.0F, 4.0F, 6.0F, 4.0F) // Stern lantern
 			.texOffs(0, 296).addBox(-2.5F, -68.0F, -20.0F, 5.0F, 64.0F, 5.0F) // Foremast (5x5, +1 block taller)
 			.texOffs(22, 296).addBox(-1.5F, -78.0F, -19.0F, 3.0F, 10.0F, 3.0F) // Thinner Fore-Topmast (3x3)

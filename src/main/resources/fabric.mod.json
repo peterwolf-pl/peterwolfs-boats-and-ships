@@ -13,6 +13,9 @@
     "main": ["com.piotrek.peterwolfsboatsandships.PeterwolfsBoatsAndShipsMod"],
     "client": ["com.piotrek.peterwolfsboatsandships.client.PeterwolfsBoatsAndShipsClient"]
   },
+  "mixins": [
+    "peterwolfs_boats_and_ships.client.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.19.3",
     "minecraft": "~26.2",

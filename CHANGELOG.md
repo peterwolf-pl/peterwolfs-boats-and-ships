@@ -2,11 +2,15 @@
 
 ## Unreleased
 
+- Board by stepping onto the deck (no right-click). Right-click claims the helm for steering; only the helmsman can use WASD.
+- Double-tap `W` speed boost now eases the camera out: third-person distance increases and FOV widens slightly while the boost is held.
+- Merchant Schooner deck: four supply chests placed around the mainmast.
+- Explorer Sloop deck: two supply barrels beside the mast (replacing the single mid-deck chest prop).
 - Double-tap `W` while captaining for a temporary speed boost (higher acceleration and max speed while held).
 - Double-tap `A` or `D` for a much sharper turn rate while the key is held.
 - Sharp turns lean the hull up to 30° opposite the turn direction (sails and oars follow the heel).
 - Added **Lighthouse Light** block item: craft with 6 lanterns + 3 gold ingots. Emits full block light and a rotating dual spotlight beam visible far beyond normal block render distance.
-- Lighthouse Light right-click toggles rotating spotlight vs blinking flash; beam visibility is reduced by day and full at night.
+- Lighthouse Light right-click cycles rotating spotlight → blinking point light (no ray) → off; spot beam visibility is reduced by day and full at night.
 
 ## 1.0.4
 

@@ -1,6 +1,10 @@
 {
   "variants": {
-    "flashing=false": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" },
-    "flashing=true": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" }
+    "mode=spot,lit=false": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" },
+    "mode=spot,lit=true": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" },
+    "mode=flash,lit=false": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" },
+    "mode=flash,lit=true": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" },
+    "mode=off,lit=false": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" },
+    "mode=off,lit=true": { "model": "peterwolfs_boats_and_ships:block/lighthouse_light" }
   }
 }
