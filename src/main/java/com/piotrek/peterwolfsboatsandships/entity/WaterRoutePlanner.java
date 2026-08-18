@@ -141,8 +141,12 @@ final class WaterRoutePlanner {
 		int referenceY,
 		Map<Cell, Boolean> navigationCache
 	) {
-		if (rawCells.size() <= 1) {
+		if (rawCells.isEmpty()) {
 			return List.of();
+		}
+		if (rawCells.size() == 1) {
+			Cell only = rawCells.get(0);
+			return List.of(new Vec3(only.x + 0.5D, ship.getY(), only.z + 0.5D));
 		}
 		List<Vec3> result = new ArrayList<>();
 		int anchor = 0;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.10
+
+### Crash fix
+- Fixed a server crash (`ArrayIndexOutOfBoundsException`) when a waterman's return route had no intermediate waypoints — the hull now steers toward the port instead of indexing an empty list.
+
 ## 1.0.9
 
 ### Atoll treasure goes home

@@ -44,4 +44,4 @@ Craft a **Lighthouse Light** (`6× lantern` + `3× gold ingot`) to crown a coast
 
 ## Installation
 
-Install Fabric Loader 0.19.3 for Minecraft 26.2, Fabric API 0.153.0+26.2, and Java 25. Place `peterwolfs-boats-and-ships-1.0.9.jar` in the instance `mods` folder. **Water World - The Atoll** is optional and enables the atoll trade voyages.
+Install Fabric Loader 0.19.3 for Minecraft 26.2, Fabric API 0.153.0+26.2, and Java 25. Place `peterwolfs-boats-and-ships-1.0.10.jar` in the instance `mods` folder. **Water World - The Atoll** is optional and enables the atoll trade voyages.

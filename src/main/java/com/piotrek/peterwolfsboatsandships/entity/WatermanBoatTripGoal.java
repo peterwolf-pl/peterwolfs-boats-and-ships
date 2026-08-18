@@ -442,6 +442,13 @@ final class WatermanBoatTripGoal extends Goal {
 				return false;
 			}
 		}
+		if (this.routeWaypoints.isEmpty() || this.routeWaypointIndex >= this.routeWaypoints.size()) {
+			// A successful re-plan can still produce no intermediate cells when the
+			// hull already sits on the destination cell. Steer at the target instead
+			// of indexing an empty immutable waypoint list.
+			this.steerToward(finalTarget, cruiseThrust);
+			return true;
+		}
 
 		Vec3 waypoint = this.routeWaypoints.get(this.routeWaypointIndex);
 		if (this.routeCheckCooldown > 0) {
@@ -489,7 +496,7 @@ final class WatermanBoatTripGoal extends Goal {
 			return false;
 		}
 		WaterRoutePlanner.Route route = this.findLocalRouteToward(target);
-		if (route == null) {
+		if (route == null || route.waypoints().isEmpty()) {
 			return false;
 		}
 		this.installRoute(route);
