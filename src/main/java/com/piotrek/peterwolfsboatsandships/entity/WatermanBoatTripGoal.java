@@ -30,7 +30,7 @@ final class WatermanBoatTripGoal extends Goal {
 	private static final int ROUTE_CHECK_INTERVAL = 20;
 	private static final int MAX_OUTBOUND_BLOCKED_TICKS = 120;
 	private static final int ATOLL_TRADE_TICKS = 140;
-	private static final int VOYAGE_TICKET_RADIUS = 2;
+	private static final int VOYAGE_TICKET_RADIUS = 4;
 	private static final double LOCAL_ROUTE_LEG = 36.0D;
 	private static final float ATOLL_TRIP_CHANCE = 0.60F;
 
@@ -45,6 +45,7 @@ final class WatermanBoatTripGoal extends Goal {
 	private BlockPos portLand;
 	private List<Vec3> routeWaypoints = List.of();
 	private List<Vec3> returnFallback = List.of();
+	private final List<Vec3> outboundTrail = new ArrayList<>();
 	private int routeWaypointIndex;
 	private int routeCheckCooldown;
 	private int blockedRouteTicks;
@@ -88,12 +89,19 @@ final class WatermanBoatTripGoal extends Goal {
 
 	@Override
 	public boolean canContinueToUse() {
-		return this.active
-			&& this.waterman.isAlive()
-			&& !this.waterman.isTrading()
-			&& this.ship != null
-			&& this.ship.isAlive()
-			&& this.tripTicks < (this.atollTradeVoyage ? MAX_ATOLL_TRIP_TICKS : MAX_TRIP_TICKS);
+		if (!this.active
+			|| !this.waterman.isAlive()
+			|| this.waterman.isTrading()
+			|| this.ship == null
+			|| !this.ship.isAlive()) {
+			return false;
+		}
+		int limit = this.atollTradeVoyage ? MAX_ATOLL_TRIP_TICKS : MAX_TRIP_TICKS;
+		// Never abandon a return mid-ocean just because the outbound clock ran out.
+		if (this.phase == Phase.RETURNING || this.phase == Phase.WALKING_HOME || this.phase == Phase.TRADING) {
+			limit += MAX_ATOLL_TRIP_TICKS;
+		}
+		return this.tripTicks < limit;
 	}
 
 	@Override
@@ -101,6 +109,7 @@ final class WatermanBoatTripGoal extends Goal {
 		this.active = true;
 		this.tripTicks = 0;
 		this.tripCounted = false;
+		this.outboundTrail.clear();
 		this.portLand = this.waterman.getPortPos();
 		if (this.portLand == null) {
 			this.portLand = this.waterman.blockPosition().immutable();
@@ -128,6 +137,7 @@ final class WatermanBoatTripGoal extends Goal {
 		this.portWater = null;
 		this.routeWaypoints = List.of();
 		this.returnFallback = List.of();
+		this.outboundTrail.clear();
 		this.releaseVoyageTicket();
 		if (!this.waterman.isDisplayingAtollWealth()) {
 			ItemStack held = this.waterman.getItemBySlot(EquipmentSlot.MAINHAND);
@@ -150,7 +160,7 @@ final class WatermanBoatTripGoal extends Goal {
 		if (this.ship == null) {
 			return;
 		}
-		if (this.atollTradeVoyage) {
+		if (this.atollTradeVoyage || this.phase == Phase.RETURNING || this.phase == Phase.OUTBOUND) {
 			this.refreshVoyageTicket();
 		}
 
@@ -412,10 +422,16 @@ final class WatermanBoatTripGoal extends Goal {
 		}
 		this.phase = Phase.RETURNING;
 		this.blockedRouteTicks = 0;
-		if (!this.planRouteTo(this.portWater) && !this.returnFallback.isEmpty()) {
-			// The outbound route was proven safe when the cruise began. It is a
-			// useful fallback when a temporary entity makes a fresh plan fail.
-			this.routeWaypoints = this.returnFallback;
+		if (this.planRouteTo(this.portWater)) {
+			return;
+		}
+		List<Vec3> fallback = !this.returnFallback.isEmpty()
+			? this.returnFallback
+			: reversedTrail(this.outboundTrail);
+		if (!fallback.isEmpty()) {
+			List<Vec3> route = new ArrayList<>(fallback);
+			route.add(this.portWater);
+			this.routeWaypoints = List.copyOf(route);
 			this.routeWaypointIndex = 0;
 			this.routeCheckCooldown = 0;
 		}
@@ -438,14 +454,14 @@ final class WatermanBoatTripGoal extends Goal {
 				return true;
 			}
 			if (!this.planRouteTo(finalTarget)) {
-				this.stopForBlockedRoute();
+				// Keep sailing toward the real destination. Spinning in place is how
+				// watermen used to get stuck after leaving the pier.
+				this.steerToward(finalTarget, cruiseThrust * 0.75F);
+				this.blockedRouteTicks++;
 				return false;
 			}
 		}
 		if (this.routeWaypoints.isEmpty() || this.routeWaypointIndex >= this.routeWaypoints.size()) {
-			// A successful re-plan can still produce no intermediate cells when the
-			// hull already sits on the destination cell. Steer at the target instead
-			// of indexing an empty immutable waypoint list.
 			this.steerToward(finalTarget, cruiseThrust);
 			return true;
 		}
@@ -454,8 +470,9 @@ final class WatermanBoatTripGoal extends Goal {
 		if (this.routeCheckCooldown > 0) {
 			this.routeCheckCooldown--;
 		}
-		boolean pathBlocked = this.ship.horizontalCollision;
-		if (!pathBlocked && this.routeCheckCooldown <= 0) {
+		boolean stuckOnHull = this.ship.horizontalCollision && this.ship.getHorizontalSpeed() < 0.04D;
+		boolean pathBlocked = false;
+		if (!stuckOnHull && this.routeCheckCooldown <= 0) {
 			this.routeCheckCooldown = ROUTE_CHECK_INTERVAL;
 			pathBlocked = !WaterRoutePlanner.isSegmentNavigable(
 				(ServerLevel)this.waterman.level(),
@@ -464,16 +481,18 @@ final class WatermanBoatTripGoal extends Goal {
 				waypoint
 			);
 		}
-		if (pathBlocked) {
-			if (!this.planRouteTo(finalTarget)) {
-				this.stopForBlockedRoute();
+		if (stuckOnHull || pathBlocked) {
+			if (this.planRouteTo(finalTarget) && !this.routeWaypoints.isEmpty()
+				&& this.routeWaypointIndex < this.routeWaypoints.size()) {
+				waypoint = this.routeWaypoints.get(this.routeWaypointIndex);
+			} else if (stuckOnHull) {
+				this.backOffAndTurn(finalTarget);
+				this.blockedRouteTicks++;
 				return false;
+			} else {
+				this.steerToward(finalTarget, cruiseThrust * 0.75F);
+				return true;
 			}
-			if (this.routeWaypoints.isEmpty()) {
-				this.stopForBlockedRoute();
-				return false;
-			}
-			waypoint = this.routeWaypoints.get(this.routeWaypointIndex);
 		}
 
 		this.blockedRouteTicks = 0;
@@ -481,14 +500,17 @@ final class WatermanBoatTripGoal extends Goal {
 		return true;
 	}
 
-	private void stopForBlockedRoute() {
-		if (this.ship != null) {
-			// Rotate in place while waiting for the next bounded re-plan. Keeping
-			// thrust at zero prevents the hull from grinding against the obstacle.
-			this.ship.setControl(0.0F, this.blockedRouteTicks % 40 < 20 ? 0.65F : -0.65F);
+	private void backOffAndTurn(Vec3 target) {
+		if (this.ship == null) {
+			return;
 		}
-		this.blockedRouteTicks++;
-		this.routeCheckCooldown = Math.min(this.routeCheckCooldown, 5);
+		double dx = target.x - this.ship.getX();
+		double dz = target.z - this.ship.getZ();
+		float desiredYaw = (float)Math.toDegrees(Math.atan2(-dx, dz));
+		float yawError = Mth.wrapDegrees(desiredYaw - this.ship.getYRot());
+		float rudder = Mth.clamp(yawError / 28.0F, -1.0F, 1.0F);
+		this.ship.setControl(-0.38F, rudder);
+		this.waterman.getLookControl().setLookAt(target.x, target.y, target.z);
 	}
 
 	private boolean planRouteTo(Vec3 target) {
@@ -543,6 +565,18 @@ final class WatermanBoatTripGoal extends Goal {
 		this.routeWaypointIndex = 0;
 		this.routeCheckCooldown = 0;
 		this.blockedRouteTicks = 0;
+		if (this.phase != Phase.RETURNING) {
+			this.outboundTrail.addAll(route.waypoints());
+		}
+	}
+
+	private static List<Vec3> reversedTrail(List<Vec3> trail) {
+		if (trail.isEmpty()) {
+			return List.of();
+		}
+		List<Vec3> reversed = new ArrayList<>(trail);
+		Collections.reverse(reversed);
+		return reversed;
 	}
 
 	private void rememberReturnRoute(WaterRoutePlanner.Route outboundRoute) {
@@ -578,7 +612,7 @@ final class WatermanBoatTripGoal extends Goal {
 	}
 
 	private void refreshVoyageTicket() {
-		if (!this.atollTradeVoyage || this.ship == null || !(this.waterman.level() instanceof ServerLevel level)) {
+		if (this.ship == null || !(this.waterman.level() instanceof ServerLevel level)) {
 			return;
 		}
 		BlockPos shipPos = this.ship.blockPosition();

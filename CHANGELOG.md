@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.11
+
+### Watermen come home
+- Stopped watermen spinning in place after leaving the pier. A failed local water-route no longer zeros thrust and flips the rudder.
+- They now keep steering toward the atoll or the remembered departure berth; if the hull is jammed they back off and turn instead of circling.
+- Unloaded ocean chunks are treated as open water, voyage tickets cover a wider window, and the return clock is no longer cut off mid-ocean.
+- After an atoll trade they still walk treasure to the chest beside the bed; if there is no bed they use (or place) a chest at the home port.
+
 ## 1.0.10
 
 ### Crash fix

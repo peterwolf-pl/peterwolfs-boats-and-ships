@@ -223,15 +223,24 @@ final class WaterRoutePlanner {
 	}
 
 	private static boolean isNavigableUncached(ServerLevel level, AbstractShipEntity ship, Cell cell, int referenceY) {
+		// Unloaded ocean is treated as open water. Voyage tickets only keep a
+		// small window loaded, so treating air-in-unloaded-chunks as land made
+		// every long atoll leg look blocked and the helmsman spun in place.
+		if (!level.hasChunk(cell.x >> 4, cell.z >> 4)) {
+			return true;
+		}
 		double centerX = cell.x + 0.5D;
 		double centerZ = cell.z + 0.5D;
-		double hullClearance = ship.getBbWidth() * 0.5D + 0.35D;
+		double hullClearance = ship.getBbWidth() * 0.5D + 0.2D;
 		int minX = (int)Math.floor(centerX - hullClearance);
 		int maxX = (int)Math.floor(centerX + hullClearance);
 		int minZ = (int)Math.floor(centerZ - hullClearance);
 		int maxZ = (int)Math.floor(centerZ + hullClearance);
 		for (int x = minX; x <= maxX; x++) {
 			for (int z = minZ; z <= maxZ; z++) {
+				if (!level.hasChunk(x >> 4, z >> 4)) {
+					continue;
+				}
 				if (!hasWaterSurface(level, x, z, referenceY)) {
 					return false;
 				}
@@ -240,8 +249,8 @@ final class WaterRoutePlanner {
 
 		AABB candidateBox = ship.getBoundingBox()
 			.move(centerX - ship.getX(), 0.0D, centerZ - ship.getZ())
-			.inflate(0.35D, 0.05D, 0.35D);
-		return level.noBlockCollision(ship, candidateBox) && level.noEntityCollision(ship, candidateBox);
+			.inflate(0.15D, 0.05D, 0.15D);
+		return level.noBlockCollision(ship, candidateBox);
 	}
 
 	private static boolean hasWaterSurface(ServerLevel level, int x, int z, int referenceY) {

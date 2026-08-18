@@ -158,14 +158,66 @@ final class WatermanStoreWealthGoal extends Goal {
 	@Nullable
 	private BlockPos findChestBesideBed(ServerLevel level) {
 		BlockPos bed = this.waterman.findHomeBed(level, SEARCH_RADIUS);
-		if (bed == null) {
-			return null;
+		if (bed != null) {
+			BlockPos chest = findExistingChestBesideBed(level, bed);
+			if (chest != null) {
+				return chest;
+			}
+			BlockPos placed = placeChestBesideBed(level, bed);
+			if (placed != null) {
+				return placed;
+			}
 		}
-		BlockPos chest = findExistingChestBesideBed(level, bed);
-		if (chest != null) {
-			return chest;
+		BlockPos port = this.waterman.getPortPos() != null ? this.waterman.getPortPos() : this.waterman.blockPosition();
+		BlockPos nearby = findChestNear(level, port, 16);
+		if (nearby != null) {
+			return nearby;
 		}
-		return placeChestBesideBed(level, bed);
+		return placeChestAt(level, port);
+	}
+
+	@Nullable
+	private static BlockPos findChestNear(ServerLevel level, BlockPos center, int radius) {
+		BlockPos best = null;
+		int bestDistance = Integer.MAX_VALUE;
+		for (int x = -radius; x <= radius; x++) {
+			for (int z = -radius; z <= radius; z++) {
+				for (int y = -2; y <= 3; y++) {
+					BlockPos candidate = center.offset(x, y, z);
+					if (!isHouseholdChest(level, candidate)) {
+						continue;
+					}
+					int distance = Math.abs(x) + Math.abs(y) + Math.abs(z);
+					if (distance < bestDistance) {
+						bestDistance = distance;
+						best = candidate.immutable();
+					}
+				}
+			}
+		}
+		return best;
+	}
+
+	@Nullable
+	private static BlockPos placeChestAt(ServerLevel level, BlockPos origin) {
+		for (Direction direction : Direction.Plane.HORIZONTAL) {
+			BlockPos candidate = origin.relative(direction);
+			if (!level.getBlockState(candidate).isAir()) {
+				continue;
+			}
+			BlockState below = level.getBlockState(candidate.below());
+			if (below.getCollisionShape(level, candidate.below()).isEmpty()) {
+				continue;
+			}
+			level.setBlockAndUpdate(candidate, Blocks.CHEST.defaultBlockState());
+			return candidate.immutable();
+		}
+		if (level.getBlockState(origin).isAir()
+			&& !level.getBlockState(origin.below()).getCollisionShape(level, origin.below()).isEmpty()) {
+			level.setBlockAndUpdate(origin, Blocks.CHEST.defaultBlockState());
+			return origin.immutable();
+		}
+		return null;
 	}
 
 	@Nullable

@@ -18,7 +18,7 @@ final class AtollTradeCompat {
 	static final String ATOLL_MOD_ID = "water_world_atoll";
 	private static final int STRUCTURE_SEARCH_RADIUS_CHUNKS = 48;
 	private static final long SEARCH_CACHE_TICKS = 6000L;
-	private static final double SAFE_BERTH_RADIUS = 40.0D;
+	private static final double SAFE_BERTH_RADIUS = 56.0D;
 	private static final TagKey<Structure> TRADE_ATOLLS = TagKey.create(
 		Registries.STRUCTURE,
 		Identifier.fromNamespaceAndPath("peterwolfs_boats_and_ships", "waterman_trade_atolls")
