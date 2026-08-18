@@ -207,7 +207,7 @@ public final class WatermanEntity extends Villager {
 		return this.portPos;
 	}
 
-	void setPortPos(BlockPos portPos) {
+	public void setPortPos(BlockPos portPos) {
 		this.portPos = portPos.immutable();
 		this.setHomeTo(this.portPos, PORT_HOME_RADIUS);
 	}

@@ -14,5 +14,7 @@
   "entity.peterwolfs_boats_and_ships.merchant_schooner": "Szkuner Kupiecki",
   "entity.peterwolfs_boats_and_ships.waterman": "Wodniak",
   "container.peterwolfs_boats_and_ships.explorer_sloop": "Schowek slupa odkrywcy",
-  "container.peterwolfs_boats_and_ships.merchant_schooner": "Ładownia szkunera kupieckiego"
+  "container.peterwolfs_boats_and_ships.merchant_schooner": "Ładownia szkunera kupieckiego",
+  "command.peterwolfs_boats_and_ships.spawn_settlement_success": "Postawiono osadę wodniaków na %s, %s, %s",
+  "command.peterwolfs_boats_and_ships.spawn_settlement_no_water": "Najpierw stań na brzegu dużego zbiornika wodnego"
 }

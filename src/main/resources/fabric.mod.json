@@ -3,7 +3,7 @@
   "id": "peterwolfs_boats_and_ships",
   "version": "${version}",
   "name": "Peterwolf's Minecraft Boats and Ships",
-  "description": "Steerable wooden boats and sailing ships with server-authoritative movement.",
+  "description": "Steerable wooden boats and sailing ships with waterman shore settlements.",
   "authors": ["Piotrek"],
   "license": "CC0-1.0",
   "environment": "*",

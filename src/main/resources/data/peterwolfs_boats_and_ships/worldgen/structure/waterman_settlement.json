@@ -1,0 +1,7 @@
+{
+  "type": "peterwolfs_boats_and_ships:waterman_settlement",
+  "biomes": "#peterwolfs_boats_and_ships:has_structure/waterman_settlement",
+  "spawn_overrides": {},
+  "step": "surface_structures",
+  "terrain_adaptation": "none"
+}

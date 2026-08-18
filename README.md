@@ -16,6 +16,19 @@ The **Waterman Spawn Egg** is available in the mod tab and the vanilla Spawn Egg
 
 With the optional **Water World - The Atoll** mod installed, watermen frequently turn these cruises into long trading voyages. They find the nearest atoll, approach an offshore berth from the port side, visibly trade there, load the ship and their inventory with copper, iron, gold, emeralds, diamonds, netherite scrap and occasional Atoll Seeds, then return to their original port displaying an emerald block. After disembarking they carry that treasure to the chest beside their bed. Long routes are divided into safe locally checked legs and keep nearby voyage chunks active while the vessel is underway.
 
+## Waterman settlements
+
+Hamlets generate on the **shore of a large body of water**. They are never placed inland or on a tiny pond: the generator requires a wide, deep stretch of water and a usable bank.
+
+Every settlement has:
+
+- Simple **oak huts** with **flat slab roofs** and **bamboo doors**, each with a bed and a chest
+- **Crop plots** (wheat, carrots, potatoes) with irrigation
+- A **port** — spruce pier, lanterns, and docked River Skiff / Explorer Sloop vessels (Merchant Schooner on large hamlets)
+- Resident watermen who remember that port
+
+**One in ten** settlements is large and includes a stone **lighthouse** topped with a Lighthouse Light. Find one with `/locate structure peterwolfs_boats_and_ships:waterman_settlement`. Operators can spawn a test hamlet with `/pwboats spawn-settlement [small|large]` while standing on a shore.
+
 ## Survival crafting
 
 All items craft in a **crafting table**. Recipes unlock in the recipe book when you pick up a key ingredient.
@@ -44,4 +57,4 @@ Craft a **Lighthouse Light** (`6× lantern` + `3× gold ingot`) to crown a coast
 
 ## Installation
 
-Install Fabric Loader 0.19.3 for Minecraft 26.2, Fabric API 0.153.0+26.2, and Java 25. Place `peterwolfs-boats-and-ships-1.0.11.jar` in the instance `mods` folder. **Water World - The Atoll** is optional and enables the atoll trade voyages.
+Install Fabric Loader 0.19.3 for Minecraft 26.2, Fabric API 0.153.0+26.2, and Java 25. Place `peterwolfs-boats-and-ships-1.0.12.jar` in the instance `mods` folder. **Water World - The Atoll** is optional and enables the atoll trade voyages.

@@ -14,5 +14,7 @@
   "entity.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner",
   "entity.peterwolfs_boats_and_ships.waterman": "Waterman",
   "container.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop Locker",
-  "container.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner Hold"
+  "container.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner Hold",
+  "command.peterwolfs_boats_and_ships.spawn_settlement_success": "Spawned a waterman settlement at %s, %s, %s",
+  "command.peterwolfs_boats_and_ships.spawn_settlement_no_water": "Stand on the shore of a large body of water first"
 }

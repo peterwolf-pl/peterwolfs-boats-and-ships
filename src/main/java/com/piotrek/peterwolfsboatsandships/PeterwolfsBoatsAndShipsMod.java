@@ -2,12 +2,14 @@ package com.piotrek.peterwolfsboatsandships;
 
 import com.piotrek.peterwolfsboatsandships.block.LighthouseLightBlock;
 import com.piotrek.peterwolfsboatsandships.block.LighthouseLightBlockEntity;
+import com.piotrek.peterwolfsboatsandships.command.WatermanSettlementCommands;
 import com.piotrek.peterwolfsboatsandships.entity.ExplorerSloopEntity;
 import com.piotrek.peterwolfsboatsandships.entity.MerchantSchoonerEntity;
 import com.piotrek.peterwolfsboatsandships.entity.RiverSkiffEntity;
 import com.piotrek.peterwolfsboatsandships.entity.WatermanEntity;
 import com.piotrek.peterwolfsboatsandships.item.ShipItem;
 import com.piotrek.peterwolfsboatsandships.network.ShipInputPayload;
+import com.piotrek.peterwolfsboatsandships.worldgen.ModStructures;
 import java.util.Set;
 import java.util.function.Function;
 import net.fabricmc.api.ModInitializer;
@@ -129,6 +131,8 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 			output.insertAfter(Items.VILLAGER_SPAWN_EGG, WATERMAN_SPAWN_EGG);
 		});
 		FabricDefaultAttributeRegistry.register(WATERMAN, WatermanEntity.createAttributes());
+		ModStructures.register();
+		WatermanSettlementCommands.register();
 		PayloadTypeRegistry.serverboundPlay().register(ShipInputPayload.TYPE, ShipInputPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(ShipInputPayload.TYPE, (payload, context) -> context.server().execute(() -> {
 			ServerPlayer player = context.player();

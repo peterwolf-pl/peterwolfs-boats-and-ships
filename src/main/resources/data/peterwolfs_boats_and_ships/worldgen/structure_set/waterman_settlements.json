@@ -1,0 +1,15 @@
+{
+  "structures": [
+    {
+      "structure": "peterwolfs_boats_and_ships:waterman_settlement",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "salt": 26022019,
+    "spacing": 24,
+    "separation": 10,
+    "spread_type": "linear"
+  }
+}

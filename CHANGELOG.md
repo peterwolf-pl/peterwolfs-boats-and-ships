@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.12
+
+### Waterman settlements
+- Watermen now live in generated shore hamlets on the bank of a large body of water (ocean, wide river or lake). Inland ponds are skipped.
+- Simple oak huts with **flat slab roofs** and **bamboo doors**, crop plots, and a **mandatory wooden port** with docked vessels.
+- One in ten settlements is large: more huts, a bigger pier, and a stone **lighthouse** capped with Lighthouse Light.
+- Locate with `/locate structure peterwolfs_boats_and_ships:waterman_settlement`. Operators can place one with `/pwboats spawn-settlement [small|large]` while standing on a shore.
+
 ## 1.0.11
 
 ### Watermen come home
