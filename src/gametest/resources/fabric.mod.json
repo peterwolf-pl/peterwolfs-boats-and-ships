@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "peterwolfs_boats_and_ships_gametest",
+  "version": "1.0.0",
+  "name": "Peterwolf's Boats and Ships Client Game Tests",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "com.piotrek.peterwolfsboatsandships.entity.PassengerSafetyClientGameTest",
+      "com.piotrek.peterwolfsboatsandships.entity.WatermanClientGameTest"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.2",
+    "fabric-api": "*",
+    "peterwolfs_boats_and_ships": "*"
+  }
+}

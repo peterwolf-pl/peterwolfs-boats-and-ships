@@ -3,6 +3,7 @@
   "item.peterwolfs_boats_and_ships.river_skiff": "Rzeczny Skiff",
   "item.peterwolfs_boats_and_ships.explorer_sloop": "Slup Odkrywcy",
   "item.peterwolfs_boats_and_ships.merchant_schooner": "Szkuner Kupiecki",
+  "item.peterwolfs_boats_and_ships.waterman_spawn_egg": "Jajo przyzywające wodniaka",
   "block.peterwolfs_boats_and_ships.lighthouse_light": "Źródło światła latarni morskiej",
   "item.peterwolfs_boats_and_ships.lighthouse_light": "Źródło światła latarni morskiej",
   "message.peterwolfs_boats_and_ships.lighthouse_spot": "Latarnia: obracający się spotlight",
@@ -11,6 +12,7 @@
   "entity.peterwolfs_boats_and_ships.river_skiff": "Rzeczny Skiff",
   "entity.peterwolfs_boats_and_ships.explorer_sloop": "Slup Odkrywcy",
   "entity.peterwolfs_boats_and_ships.merchant_schooner": "Szkuner Kupiecki",
+  "entity.peterwolfs_boats_and_ships.waterman": "Wodniak",
   "container.peterwolfs_boats_and_ships.explorer_sloop": "Schowek slupa odkrywcy",
   "container.peterwolfs_boats_and_ships.merchant_schooner": "Ładownia szkunera kupieckiego"
 }

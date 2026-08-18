@@ -16,10 +16,30 @@ loom {
 	}
 }
 
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "peterwolfs_boats_and_ships_gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+		clearRunDirectory = true
+		username = "PWBoatsTest"
+	}
+}
+
+sourceSets.gametest {
+	compileClasspath += sourceSets.client.output
+	runtimeClasspath += sourceSets.client.output
+}
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	if (providers.gradleProperty('atoll_compat_jar').isPresent()) {
+		localRuntime files(providers.gradleProperty('atoll_compat_jar').get())
+	}
 }
 
 processResources {

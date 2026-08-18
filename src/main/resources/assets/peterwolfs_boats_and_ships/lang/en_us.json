@@ -3,6 +3,7 @@
   "item.peterwolfs_boats_and_ships.river_skiff": "River Skiff",
   "item.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop",
   "item.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner",
+  "item.peterwolfs_boats_and_ships.waterman_spawn_egg": "Waterman Spawn Egg",
   "block.peterwolfs_boats_and_ships.lighthouse_light": "Lighthouse Light",
   "item.peterwolfs_boats_and_ships.lighthouse_light": "Lighthouse Light",
   "message.peterwolfs_boats_and_ships.lighthouse_spot": "Lighthouse: rotating spotlight",
@@ -11,6 +12,7 @@
   "entity.peterwolfs_boats_and_ships.river_skiff": "River Skiff",
   "entity.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop",
   "entity.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner",
+  "entity.peterwolfs_boats_and_ships.waterman": "Waterman",
   "container.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop Locker",
   "container.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner Hold"
 }

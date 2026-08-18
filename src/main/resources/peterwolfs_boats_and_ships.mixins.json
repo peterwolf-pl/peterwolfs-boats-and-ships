@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "com.piotrek.peterwolfsboatsandships.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "LivingEntityDismountMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -11,6 +11,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.ModelLayerRegistry;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
+import net.minecraft.client.renderer.entity.VillagerRenderer;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -62,6 +63,7 @@ public final class PeterwolfsBoatsAndShipsClient implements ClientModInitializer
 		EntityRendererRegistry.register(PeterwolfsBoatsAndShipsMod.RIVER_SKIFF, context -> new ShipRenderer<>(context, RIVER_SKIFF_LAYER, PeterwolfsBoatsAndShipsMod.id("textures/entity/river_skiff.png"), 0.9F));
 		EntityRendererRegistry.register(PeterwolfsBoatsAndShipsMod.EXPLORER_SLOOP, context -> new ShipRenderer<>(context, EXPLORER_SLOOP_LAYER, PeterwolfsBoatsAndShipsMod.id("textures/entity/explorer_sloop.png"), 1.25F));
 		EntityRendererRegistry.register(PeterwolfsBoatsAndShipsMod.MERCHANT_SCHOONER, context -> new ShipRenderer<>(context, MERCHANT_SCHOONER_LAYER, PeterwolfsBoatsAndShipsMod.id("textures/entity/merchant_schooner.png"), 1.75F));
+		EntityRendererRegistry.register(PeterwolfsBoatsAndShipsMod.WATERMAN, VillagerRenderer::new);
 		ModelLayerRegistry.registerModelLayer(RIVER_SKIFF_LAYER, ShipModel::createRiverSkiffLayer);
 		ModelLayerRegistry.registerModelLayer(EXPLORER_SLOOP_LAYER, ShipModel::createExplorerSloopLayer);
 		ModelLayerRegistry.registerModelLayer(MERCHANT_SCHOONER_LAYER, ShipModel::createMerchantSchoonerLayer);

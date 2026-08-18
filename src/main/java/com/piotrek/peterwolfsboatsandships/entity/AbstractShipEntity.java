@@ -1,5 +1,7 @@
 package com.piotrek.peterwolfsboatsandships.entity;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,10 +26,13 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.InterpolationHandler;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.vehicle.DismountHelper;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.storage.ValueInput;
@@ -40,13 +45,15 @@ import org.jetbrains.annotations.Nullable;
  * Shared hull physics. This deliberately never grants client movement authority:
  * client packets set captain intent and the dedicated server moves the vessel.
  *
- * <p>Boarding is automatic when a player steps onto the deck. Right-click claims
- * the helm for steering; sneak + right-click opens cargo on ships that have it.
+ * <p>The hull is a solid walkable deck (like a floating platform). Players step on
+ * and off freely without entering vehicle control. Right-click claims the helm
+ * (starts riding for WASD steering); sneak or right-click again leaves the helm.
+ * Sneak + right-click opens cargo on ships that have it.
  */
 public abstract class AbstractShipEntity extends Entity {
 	private static final EntityDataAccessor<Float> THRUST = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
 	private static final EntityDataAccessor<Float> RUDDER = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
-	/** Entity id of the player who claimed the helm, or -1 when nobody is steering. */
+	/** Entity id of the living captain who claimed the helm, or -1 when free. */
 	private static final EntityDataAccessor<Integer> HELMSMAN_ID = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.INT);
 
 	/** Double-tap W may send thrust above 1.0; keep room for that. */
@@ -59,6 +66,8 @@ public abstract class AbstractShipEntity extends Entity {
 	private static final int INPUT_FRESH_TICKS = 10;
 	/** Speed multiplier while double-tap W boost is held. */
 	private static final double BOOST_SPEED_MULT = 1.5D;
+	/** The vessel must be genuinely stopped before anyone can step ashore. */
+	private static final double DISEMBARK_MAX_SPEED = 0.035D;
 
 	private float visualHeel;
 	private float visualHeelO;
@@ -132,6 +141,24 @@ public abstract class AbstractShipEntity extends Entity {
 	public final float getOarPhase(float partialTick) { return Mth.lerp(partialTick, this.oarPhaseO, this.oarPhase); }
 	public final double getHorizontalSpeed() { Vec3 velocity = this.getDeltaMovement(); return Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z); }
 
+	/** Stores autonomous trade cargo and returns anything that did not fit. */
+	public final ItemStack addTradeCargo(ItemStack stack) {
+		return this.cargo.addItem(stack.copy());
+	}
+
+	/** Removes matching cargo so the waterman can carry it ashore. */
+	public final List<ItemStack> takeMatchingCargo(java.util.function.Predicate<ItemStack> match) {
+		List<ItemStack> taken = new ArrayList<>();
+		for (int slot = 0; slot < this.cargo.getContainerSize(); slot++) {
+			ItemStack stack = this.cargo.getItem(slot);
+			if (!stack.isEmpty() && match.test(stack)) {
+				taken.add(stack.copy());
+				this.cargo.setItem(slot, ItemStack.EMPTY);
+			}
+		}
+		return taken;
+	}
+
 	/** True when this entity is the player who claimed the helm (right-click). */
 	public final boolean isHelmsman(Entity entity) {
 		return entity != null && entity.getId() == this.entityData.get(HELMSMAN_ID);
@@ -144,15 +171,56 @@ public abstract class AbstractShipEntity extends Entity {
 		return this.level().getEntity(id);
 	}
 
-	private void setHelmsman(@Nullable Player player) {
-		if (player == null) {
+	private void setHelmsman(@Nullable LivingEntity captain) {
+		if (captain == null) {
 			this.helmsmanUuid = null;
 			this.entityData.set(HELMSMAN_ID, -1);
 			this.clearControl();
 			return;
 		}
-		this.helmsmanUuid = player.getUUID();
-		this.entityData.set(HELMSMAN_ID, player.getId());
+		this.helmsmanUuid = captain.getUUID();
+		this.entityData.set(HELMSMAN_ID, captain.getId());
+	}
+
+	/**
+	 * Server-side helm claim used by autonomous crew as well as player interaction.
+	 * The caller must keep supplying {@link #setControl(float, float)} while steering.
+	 */
+	public final boolean tryClaimHelm(LivingEntity captain) {
+		if (captain == null || !captain.isAlive()) return false;
+		Entity current = this.getHelmsman();
+		if (current != null && current != captain) return false;
+		if (captain.getVehicle() != null && captain.getVehicle() != this) return false;
+		if (captain.getVehicle() != this) {
+			if (!this.canAddPassenger(captain) || !captain.startRiding(this)) return false;
+		}
+		this.setHelmsman(captain);
+		return true;
+	}
+
+	/** Adds a non-controlling rider without changing the already claimed helm. */
+	public final boolean tryBoardPassenger(LivingEntity passenger) {
+		if (passenger == null || !passenger.isAlive() || passenger instanceof Player player && player.isSpectator()) {
+			return false;
+		}
+		if (passenger.getVehicle() == this) {
+			return true;
+		}
+		if (passenger.getVehicle() != null || !this.canAddPassenger(passenger)) {
+			return false;
+		}
+		return passenger.startRiding(this);
+	}
+
+	/** Release a matching captain only after the vessel has stopped at shore. */
+	public final boolean releaseHelm(LivingEntity captain) {
+		if (!this.isHelmsman(captain)) return false;
+		if (captain.getVehicle() == this && !this.canPassengerDismount(captain)) return false;
+		this.setHelmsman(null);
+		if (captain.getVehicle() == this) {
+			captain.stopRiding();
+		}
+		return true;
 	}
 
 	/** Keep synched helmsman entity id in sync with the saved UUID among passengers. */
@@ -194,50 +262,34 @@ public abstract class AbstractShipEntity extends Entity {
 			return;
 		}
 		this.refreshHelmsmanSync();
-		this.tryAutoBoard();
 		this.tickServerPhysics();
-	}
-
-	/**
-	 * Step onto the deck to board — no right-click required.
-	 * Sneaking skips auto-board so players can swim past or work near the hull.
-	 */
-	private void tryAutoBoard() {
-		if (this.getPassengers().size() >= this.seatCount()) return;
-		AABB deck = this.getBoundingBox().inflate(0.2D, 0.4D, 0.2D);
-		List<Player> candidates = this.level().getEntitiesOfClass(Player.class, deck, this::canAutoBoard);
-		for (Player player : candidates) {
-			if (this.getPassengers().size() >= this.seatCount()) break;
-			player.startRiding(this);
-		}
-	}
-
-	private boolean canAutoBoard(Player player) {
-		if (player.isSpectator() || player.isPassenger() || player.isShiftKeyDown()) return false;
-		if (!this.canAddPassenger(player)) return false;
-		double dy = player.getY() - this.getY();
-		// Feet on/above the hull — ignore players deep under the keel.
-		if (dy < -0.2D || dy > Math.max(2.2D, this.getBbHeight() + 0.5D)) return false;
-		// Do not yank fully submerged divers from under the ship.
-		if (player.isUnderWater() && dy < 0.15D) return false;
-		return true;
 	}
 
 	private void tickServerPhysics() {
 		Entity helmsman = this.getHelmsman();
-		if (!(helmsman instanceof ServerPlayer player)) {
-			this.clearControl();
-		} else if (this.inputFreshTicks > 0) {
-			// Prefer captain packets so double-tap boost magnitudes survive.
-			this.inputFreshTicks--;
+		if (helmsman instanceof ServerPlayer player) {
+			if (this.inputFreshTicks > 0) {
+				// Prefer captain packets so double-tap boost magnitudes survive.
+				this.inputFreshTicks--;
+			} else {
+				// Fallback when client packets are missing (e.g. brief desync).
+				// Player.zza/xxa are not updated while an entity is being ridden.
+				// Do not mark input fresh — re-sample vanilla each tick until packets resume.
+				var input = player.getLastClientInput();
+				float thrust = input.forward() ? 1.0F : input.backward() ? -0.55F : 0.0F;
+				float rudder = input.left() ? -1.0F : input.right() ? 1.0F : 0.0F;
+				this.applyControl(thrust, rudder);
+			}
+		} else if (helmsman instanceof LivingEntity living && this.hasPassenger(living)) {
+			// NPC captains write server-authoritative intent from their Goal each tick.
+			// A short freshness window bridges entity tick ordering without stale motion.
+			if (this.inputFreshTicks > 0) {
+				this.inputFreshTicks--;
+			} else {
+				this.clearControl();
+			}
 		} else {
-			// Fallback when client packets are missing (e.g. brief desync).
-			// Player.zza/xxa are not updated while an entity is being ridden.
-			// Do not mark input fresh — re-sample vanilla each tick until packets resume.
-			var input = player.getLastClientInput();
-			float thrust = input.forward() ? 1.0F : input.backward() ? -0.55F : 0.0F;
-			float rudder = input.left() ? -1.0F : input.right() ? 1.0F : 0.0F;
-			this.applyControl(thrust, rudder);
+			this.clearControl();
 		}
 		double surface = this.findWaterSurface();
 		if (Double.isNaN(surface)) {
@@ -245,6 +297,12 @@ public abstract class AbstractShipEntity extends Entity {
 			this.setDeltaMovement(this.getDeltaMovement().multiply(0.55D, 0.0D, 0.55D));
 			return;
 		}
+
+		// Capture deck-standers before the hull moves so we can carry them with us.
+		List<Player> deckStanders = this.collectDeckStanders();
+		double oldX = this.getX();
+		double oldY = this.getY();
+		double oldZ = this.getZ();
 
 		this.setPos(this.getX(), surface - 0.28D, this.getZ());
 		Vec3 heading = this.heading();
@@ -268,6 +326,42 @@ public abstract class AbstractShipEntity extends Entity {
 		this.move(MoverType.SELF, movement);
 		if (this.horizontalCollision) {
 			this.setDeltaMovement(movement.scale(0.22D));
+		}
+
+		double dx = this.getX() - oldX;
+		double dy = this.getY() - oldY;
+		double dz = this.getZ() - oldZ;
+		if (dx * dx + dy * dy + dz * dz > 1.0E-10D) {
+			this.carryDeckStanders(deckStanders, dx, dy, dz);
+		}
+	}
+
+	/** Players standing freely on the solid deck (not riding the helm). */
+	private List<Player> collectDeckStanders() {
+		AABB search = this.deckSurfaceBox().inflate(0.1D, 0.35D, 0.1D);
+		return this.level().getEntitiesOfClass(Player.class, search, this::isStandingOnDeck);
+	}
+
+	private boolean isStandingOnDeck(Player player) {
+		if (player.isSpectator() || player.isPassenger() || !player.isAlive()) return false;
+		AABB hull = this.getBoundingBox().inflate(0.12D, 0.0D, 0.12D);
+		if (!hull.intersects(player.getBoundingBox())) return false;
+		double feet = player.getY();
+		double deck = this.getBoundingBox().maxY;
+		// Feet on/just above the deck top — not swimming under the keel.
+		return feet >= deck - 0.35D && feet <= deck + 0.85D;
+	}
+
+	private AABB deckSurfaceBox() {
+		AABB box = this.getBoundingBox();
+		return new AABB(box.minX, box.maxY - 0.2D, box.minZ, box.maxX, box.maxY + 0.15D, box.maxZ);
+	}
+
+	/** Move free deck walkers with the hull so the ship feels like a platform. */
+	private void carryDeckStanders(List<Player> standers, double dx, double dy, double dz) {
+		for (Player player : standers) {
+			if (player.isRemoved() || player.isPassenger()) continue;
+			player.setPos(player.getX() + dx, player.getY() + dy, player.getZ() + dz);
 		}
 	}
 
@@ -355,9 +449,23 @@ public abstract class AbstractShipEntity extends Entity {
 		return false;
 	}
 
+	/**
+	 * Solid deck collision — walk on/off from a pier like blocks lying in water.
+	 * Boarding the helm (vehicle seat) is right-click only; this never auto-mounts.
+	 */
+	@Override
+	public boolean canBeCollidedWith(@Nullable Entity other) {
+		// Helmsman rides the seat and must not solid-collide with their own hull.
+		if (other != null && this.hasPassenger(other)) {
+			return false;
+		}
+		return true;
+	}
+
+	/** Every hull has its declared number of seats; only living crew can occupy them. */
 	@Override
 	protected boolean canAddPassenger(Entity passenger) {
-		return this.getPassengers().size() < this.seatCount();
+		return passenger instanceof LivingEntity && this.getPassengers().size() < this.seatCount();
 	}
 
 	@Override
@@ -370,33 +478,28 @@ public abstract class AbstractShipEntity extends Entity {
 
 	@Override
 	protected void positionRider(Entity passenger, MoveFunction moveFunction) {
-		int index = this.seatIndexFor(passenger);
-		if (index < 0) return;
-		Vec3 seat = this.seatOffset(index);
+		Vec3 seat = this.seatOffset(this.seatIndex(passenger));
 		double radians = Math.toRadians(this.getYRot());
 		double x = this.getX() + Math.cos(radians) * seat.x - Math.sin(radians) * seat.z;
 		double z = this.getZ() + Math.sin(radians) * seat.x + Math.cos(radians) * seat.z;
 		moveFunction.accept(passenger, x, this.getY() + seat.y, z);
 	}
 
-	/**
-	 * Helmsman always sits at seat 0 (stern helm). Other passengers fill seats 1+.
-	 * Without a helmsman, boarding order is used as before.
-	 */
-	private int seatIndexFor(Entity passenger) {
-		List<Entity> passengers = this.getPassengers();
-		if (!passengers.contains(passenger)) return -1;
-		if (this.isHelmsman(passenger)) return 0;
-		if (this.getHelmsman() == null) {
-			return passengers.indexOf(passenger);
+	private int seatIndex(Entity passenger) {
+		if (this.isHelmsman(passenger)) {
+			return 0;
 		}
-		int crew = 0;
-		for (Entity p : passengers) {
-			if (this.isHelmsman(p)) continue;
-			if (p == passenger) return crew + 1;
-			crew++;
+		int passengerSeat = 1;
+		for (Entity rider : this.getPassengers()) {
+			if (this.isHelmsman(rider)) {
+				continue;
+			}
+			if (rider == passenger) {
+				return Math.min(passengerSeat, this.seatCount() - 1);
+			}
+			passengerSeat++;
 		}
-		return passengers.indexOf(passenger);
+		return Math.min(passengerSeat, this.seatCount() - 1);
 	}
 
 	protected Vec3 seatOffset(int index) {
@@ -409,15 +512,88 @@ public abstract class AbstractShipEntity extends Entity {
 	}
 
 	@Override
+	public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
+		return this.findSafeDismountLocation(passenger)
+			.orElseGet(() -> new Vec3(this.getX(), this.getBoundingBox().maxY + 0.05D, this.getZ()));
+	}
+
+	/** Used by the common dismount guard before LivingEntity detaches from the ship. */
+	public final boolean canPassengerDismount(LivingEntity passenger) {
+		if (this.isRemoved() || passenger.isRemoved() || !passenger.isAlive()
+			|| passenger instanceof Player player && player.isSpectator()) {
+			return true;
+		}
+		return this.getHorizontalSpeed() <= DISEMBARK_MAX_SPEED
+			&& Math.abs(this.getThrust()) < 0.01F
+			&& this.hasSafeDismountLocation(passenger);
+	}
+
+	/** True when a solid, collision-free bank or pier is beside the hull. */
+	public final boolean hasSafeDismountLocation(LivingEntity passenger) {
+		return this.findSafeDismountLocation(passenger).isPresent();
+	}
+
+	private Optional<Vec3> findSafeDismountLocation(LivingEntity passenger) {
+		AABB hull = this.getBoundingBox();
+		int minX = Mth.floor(hull.minX) - 1;
+		int maxX = Mth.floor(hull.maxX) + 1;
+		int minZ = Mth.floor(hull.minZ) - 1;
+		int maxZ = Mth.floor(hull.maxZ) + 1;
+		int deckY = Mth.floor(hull.maxY);
+		List<BlockPos> candidates = new ArrayList<>();
+		for (int x = minX; x <= maxX; x++) {
+			for (int z = minZ; z <= maxZ; z++) {
+				double centerX = x + 0.5D;
+				double centerZ = z + 0.5D;
+				if (centerX >= hull.minX - 0.15D && centerX <= hull.maxX + 0.15D
+					&& centerZ >= hull.minZ - 0.15D && centerZ <= hull.maxZ + 0.15D) {
+					continue;
+				}
+				for (int y = deckY + 1; y >= deckY - 1; y--) {
+					candidates.add(new BlockPos(x, y, z));
+				}
+			}
+		}
+		candidates.sort(Comparator.comparingDouble(pos -> {
+			double dx = pos.getX() + 0.5D - passenger.getX();
+			double dy = pos.getY() - passenger.getY();
+			double dz = pos.getZ() + 0.5D - passenger.getZ();
+			return dx * dx + dy * dy + dz * dz;
+		}));
+		for (BlockPos candidate : candidates) {
+			if (this.level().getFluidState(candidate).is(FluidTags.WATER)) {
+				continue;
+			}
+			double floorHeight = this.level().getBlockFloorHeight(candidate);
+			if (!DismountHelper.isBlockFloorValid(floorHeight)) {
+				continue;
+			}
+			Vec3 safe = new Vec3(candidate.getX() + 0.5D, candidate.getY() + floorHeight, candidate.getZ() + 0.5D);
+			for (Pose pose : passenger.getDismountPoses()) {
+				if (DismountHelper.canDismountTo(this.level(), safe, passenger, pose)) {
+					passenger.setPose(pose);
+					return Optional.of(safe);
+				}
+			}
+		}
+		return Optional.empty();
+	}
+
+	@Override
 	@Nullable
 	public LivingEntity getControllingPassenger() {
+		// Only the claimed helmsman controls the vessel — deck walkers do not.
 		Entity helmsman = this.getHelmsman();
-		return helmsman instanceof LivingEntity living ? living : null;
+		if (helmsman instanceof LivingEntity living && this.hasPassenger(living)) {
+			return living;
+		}
+		return null;
 	}
 
 	/**
-	 * Right-click claims the helm (steering). Sneak + right-click opens cargo.
-	 * Boarding itself is automatic when stepping onto the deck.
+	 * Right-click: the first rider takes the helm, every later rider takes a passenger seat.
+	 * Sneak + right-click opens cargo.
+	 * Walking the deck does not mount control — that requires an explicit right-click.
 	 */
 	@Override
 	public InteractionResult interact(Player player, InteractionHand hand, Vec3 location) {
@@ -430,20 +606,25 @@ public abstract class AbstractShipEntity extends Entity {
 			return InteractionResult.SUCCESS;
 		}
 		if (!this.level().isClientSide()) {
-			return this.claimHelm(player) ? InteractionResult.CONSUME : InteractionResult.PASS;
+			return this.toggleHelm(player) ? InteractionResult.CONSUME : InteractionResult.PASS;
 		}
 		return InteractionResult.SUCCESS;
 	}
 
-	/** Right-click: board if needed and take the helm for WASD steering. */
-	private boolean claimHelm(Player player) {
+	/**
+	 * The first right-click claims steering. Further right-clicks board passenger
+	 * seats without stealing control. The captain can leave only when safely docked.
+	 */
+	private boolean toggleHelm(Player player) {
 		if (player.isSpectator()) return false;
-		if (player.getVehicle() != this) {
-			if (!this.canAddPassenger(player)) return false;
-			if (!player.startRiding(this)) return false;
+		// Already at the helm → leave only after stopping beside land or a pier.
+		if (this.isHelmsman(player) && player.getVehicle() == this) {
+			return this.releaseHelm(player);
 		}
-		this.setHelmsman(player);
-		return true;
+		if (player.getVehicle() == this) {
+			return true;
+		}
+		return this.getHelmsman() == null ? this.tryClaimHelm(player) : this.tryBoardPassenger(player);
 	}
 
 	@Override
@@ -451,7 +632,7 @@ public abstract class AbstractShipEntity extends Entity {
 
 	@Override
 	public boolean hurtServer(ServerLevel level, net.minecraft.world.damagesource.DamageSource source, float amount) {
-		if (this.getFirstPassenger() instanceof Player || !(source.getEntity() instanceof Player player) || player.isSpectator()) return false;
+		if (this.isVehicle() || !(source.getEntity() instanceof Player player) || player.isSpectator()) return false;
 		Containers.dropContents(level, this, this.cargo);
 		if (!player.getAbilities().instabuild) this.spawnAtLocation(level, this.dropItem());
 		this.discard();
