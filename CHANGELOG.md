@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.15
+
+### Shore hamlets
+- Removed the decorative stairs that sat in the hut doorway and blocked watermen from leaving.
+- Watermen can open bamboo doors again (including while fishing or sailing), and they spawn just inside a cleared doorway.
+
 ## 1.0.14
 
 ### Shore hamlets

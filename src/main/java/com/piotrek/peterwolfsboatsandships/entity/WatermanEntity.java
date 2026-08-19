@@ -19,6 +19,7 @@ import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
+import net.minecraft.world.entity.ai.goal.OpenDoorGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -82,12 +83,13 @@ public final class WatermanEntity extends Villager {
 	@Override
 	protected void registerGoals() {
 		this.goalSelector.addGoal(0, new FloatGoal(this));
+		this.goalSelector.addGoal(1, new OpenDoorGoal(this, true));
 		this.storeWealthGoal = new WatermanStoreWealthGoal(this);
 		this.boatTripGoal = new WatermanBoatTripGoal(this);
 		this.fishingGoal = new WatermanFishingGoal(this);
-		this.goalSelector.addGoal(1, this.storeWealthGoal);
-		this.goalSelector.addGoal(2, this.boatTripGoal);
-		this.goalSelector.addGoal(3, this.fishingGoal);
+		this.goalSelector.addGoal(2, this.storeWealthGoal);
+		this.goalSelector.addGoal(3, this.boatTripGoal);
+		this.goalSelector.addGoal(4, this.fishingGoal);
 		this.goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 8.0F));
 		this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
 	}

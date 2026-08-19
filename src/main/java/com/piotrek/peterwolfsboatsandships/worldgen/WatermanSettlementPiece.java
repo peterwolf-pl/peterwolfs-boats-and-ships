@@ -28,7 +28,6 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
 import net.minecraft.world.level.block.SlabBlock;
-import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -355,13 +354,33 @@ public final class WatermanSettlementPiece extends StructurePiece {
 
 		if (onWater) {
 			buildBoardwalk(level, chunkBB, doorX, doorZ, Direction.NORTH);
+			clearDoorway(level, chunkBB, doorX, doorZ, Direction.NORTH, false);
 		} else {
-			int stepZ = doorZ + 1;
-			this.set(level, chunkBB, doorX, 0, stepZ, Blocks.DIRT_PATH.defaultBlockState());
-			if (style % 2 == 0) {
-				this.set(level, chunkBB, doorX, 1, stepZ, kit.stair.setValue(StairBlock.FACING, Direction.NORTH));
-			}
+			clearDoorway(level, chunkBB, doorX, doorZ, Direction.SOUTH, true);
 		}
+	}
+
+	/** Keep the two-block doorway and the first step outside empty so watermen can leave. */
+	private void clearDoorway(
+		WorldGenLevel level,
+		BoundingBox chunkBB,
+		int doorX,
+		int doorZ,
+		Direction outward,
+		boolean pathOutside
+	) {
+		int fx = doorX + outward.getStepX();
+		int fz = doorZ + outward.getStepZ();
+		int ix = doorX - outward.getStepX();
+		int iz = doorZ - outward.getStepZ();
+		if (pathOutside) {
+			this.set(level, chunkBB, fx, 0, fz, Blocks.DIRT_PATH.defaultBlockState());
+		}
+		this.set(level, chunkBB, fx, 1, fz, Blocks.AIR.defaultBlockState());
+		this.set(level, chunkBB, fx, 2, fz, Blocks.AIR.defaultBlockState());
+		this.set(level, chunkBB, ix, 1, iz, Blocks.AIR.defaultBlockState());
+		this.set(level, chunkBB, ix, 2, iz, Blocks.AIR.defaultBlockState());
+		placeBambooDoor(level, chunkBB, doorX, 1, doorZ, outward);
 	}
 
 	private boolean hutSitsOnWater(WorldGenLevel level, int ox, int oz, int w, int d) {
@@ -629,11 +648,21 @@ public final class WatermanSettlementPiece extends StructurePiece {
 	}
 
 	private void spawnWatermen(WorldGenLevel level, BoundingBox chunkBB, BlockPos port) {
-		int[][] slots = this.large
-			? new int[][]{{5, 12}, {13, 10}, {21, 12}, {29, 10}, {9, 18}, {25, 18}}
-			: new int[][]{{5, 12}, {13, 10}, {21, 12}};
-		for (int i = 0; i < slots.length && i < WATERMAN_SLOTS; i++) {
-			trySpawnWaterman(level, chunkBB, i, slots[i][0], 1, slots[i][1], port);
+		int[][] huts = this.large
+			? new int[][]{{3, 10}, {11, 8}, {19, 10}, {27, 8}, {7, 16}, {23, 16}}
+			: new int[][]{{3, 10}, {11, 8}, {19, 10}};
+		int shift = this.layoutVariant == 1 ? 1 : (this.layoutVariant == 2 ? -1 : 0);
+		for (int i = 0; i < huts.length && i < WATERMAN_SLOTS; i++) {
+			int style = Math.floorMod(i + this.layoutVariant, 6);
+			int w = hutWidth(style);
+			int d = hutDepth(style);
+			int ox = Math.max(1, Math.min(this.layoutWidth - w - 2, huts[i][0] + shift));
+			int oz = Math.max(5, Math.min(this.landDepth - d - 3, huts[i][1] + shift));
+			boolean onWater = hutSitsOnWater(level, ox, oz, w, d);
+			int doorX = ox + w / 2;
+			int doorZ = onWater ? oz : oz + d;
+			int innerZ = onWater ? doorZ + 1 : doorZ - 1;
+			trySpawnWaterman(level, chunkBB, i, doorX, 1, innerZ, port);
 		}
 	}
 
