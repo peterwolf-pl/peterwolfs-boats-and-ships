@@ -9,7 +9,7 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureType;
 
 /**
- * Places a waterman hamlet only on the bank of a large water body.
+ * Places a waterman hamlet on the bank of a large water body, built at the waterline.
  */
 public final class WatermanSettlementStructure extends Structure {
 	public static final MapCodec<WatermanSettlementStructure> CODEC = simpleCodec(WatermanSettlementStructure::new);
@@ -35,7 +35,7 @@ public final class WatermanSettlementStructure extends Structure {
 		}
 		ShoreSite shore = site.get();
 		boolean large = context.random().nextInt(10) == 0;
-		BlockPos anchor = new BlockPos(shore.shoreX(), shore.landY(), shore.shoreZ());
+		BlockPos anchor = new BlockPos(shore.shoreX(), shore.waterY(), shore.shoreZ());
 		return Optional.of(new GenerationStub(anchor, builder ->
 			builder.addPiece(new WatermanSettlementPiece(context.random(), shore, large))
 		));
@@ -55,7 +55,7 @@ public final class WatermanSettlementStructure extends Structure {
 		int bestScore = 0;
 		int bestX = cx;
 		int bestZ = cz;
-		int bestLandY = sea;
+		int bestWaterY = sea - 1;
 
 		for (int ox = -16; ox <= 16; ox += 4) {
 			for (int oz = -16; oz <= 16; oz += 4) {
@@ -75,7 +75,7 @@ public final class WatermanSettlementStructure extends Structure {
 						bestDir = dir;
 						bestX = x;
 						bestZ = z;
-						bestLandY = landY;
+						bestWaterY = waterSurfaceY(context, x, z, dir, sea);
 					}
 				}
 			}
@@ -84,7 +84,19 @@ public final class WatermanSettlementStructure extends Structure {
 		if (bestDir == null || bestScore <= 0) {
 			return Optional.empty();
 		}
-		return Optional.of(new ShoreSite(bestX, bestZ, bestLandY, bestDir));
+		return Optional.of(new ShoreSite(bestX, bestZ, bestWaterY, bestDir));
+	}
+
+	/** Top water block facing the shore — hamlets sit on this Y, not the raised bank. */
+	static int waterSurfaceY(GenerationContext context, int x, int z, Direction dir, int sea) {
+		for (int d = 1; d <= 16; d++) {
+			int wx = x + dir.getStepX() * d;
+			int wz = z + dir.getStepZ() * d;
+			if (isWater(context, wx, wz, sea)) {
+				return height(context, wx, wz, Heightmap.Types.WORLD_SURFACE_WG);
+			}
+		}
+		return sea - 1;
 	}
 
 	private static int waterBodyScore(GenerationContext context, int x, int z, Direction dir, int sea) {
@@ -152,6 +164,6 @@ public final class WatermanSettlementStructure extends Structure {
 		);
 	}
 
-	public record ShoreSite(int shoreX, int shoreZ, int landY, Direction waterDir) {
+	public record ShoreSite(int shoreX, int shoreZ, int waterY, Direction waterDir) {
 	}
 }

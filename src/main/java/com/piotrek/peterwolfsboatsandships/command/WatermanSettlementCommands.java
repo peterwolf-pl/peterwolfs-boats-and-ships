@@ -49,13 +49,13 @@ public final class WatermanSettlementCommands {
 		}
 
 		BlockPos shore = findShoreBlock(level, pos, waterDir);
-		int landY = level.getHeight(Heightmap.Types.WORLD_SURFACE_WG, shore.getX(), shore.getZ());
+		int waterY = findWaterSurfaceY(level, shore, waterDir);
 		WatermanSettlementStructure.ShoreSite site = new WatermanSettlementStructure.ShoreSite(
-			shore.getX(), shore.getZ(), landY, waterDir
+			shore.getX(), shore.getZ(), waterY, waterDir
 		);
 		RandomSource random = level.getRandom();
 		WatermanSettlementPiece piece = new WatermanSettlementPiece(random, site, large);
-		piece.alignFloorTo(landY);
+		piece.alignFloorTo(waterY);
 		BoundingBox box = piece.getBoundingBox();
 		piece.postProcess(
 			level,
@@ -69,7 +69,7 @@ public final class WatermanSettlementCommands {
 		source.sendSuccess(
 			() -> Component.translatable(
 				"command.peterwolfs_boats_and_ships.spawn_settlement_success",
-				shore.getX(), landY, shore.getZ()
+				shore.getX(), waterY, shore.getZ()
 			),
 			true
 		);
@@ -108,6 +108,20 @@ public final class WatermanSettlementCommands {
 			cursor = next;
 		}
 		return origin;
+	}
+
+	private static int findWaterSurfaceY(ServerLevel level, BlockPos shore, Direction waterDir) {
+		for (int d = 1; d <= 16; d++) {
+			BlockPos sample = shore.relative(waterDir, d);
+			int surface = level.getHeight(Heightmap.Types.WORLD_SURFACE, sample.getX(), sample.getZ());
+			for (int y = surface + 2; y >= surface - 12; y--) {
+				BlockPos pos = new BlockPos(sample.getX(), y, sample.getZ());
+				if (isWater(level, pos) && !isWater(level, pos.above())) {
+					return y;
+				}
+			}
+		}
+		return level.getSeaLevel() - 1;
 	}
 
 	private static boolean isWater(ServerLevel level, BlockPos pos) {

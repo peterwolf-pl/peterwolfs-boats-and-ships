@@ -18,7 +18,7 @@ With the optional **Water World - The Atoll** mod installed, watermen frequently
 
 ## Waterman settlements
 
-Hamlets generate on the **shore of a large body of water**. They are never placed inland or on a tiny pond: the generator requires a wide, deep stretch of water and a usable bank.
+Hamlets generate on the **shore of a large body of water**, built **at the waterline** rather than up the bank. They are never placed inland or on a tiny pond: the generator requires a wide, deep stretch of water and a usable bank.
 
 Every settlement has:
 

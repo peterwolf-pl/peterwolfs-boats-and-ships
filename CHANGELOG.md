@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.14
+
+### Shore hamlets
+- Waterman settlements now sit **at the waterline** instead of on a raised bank: hut floors, the terrace and the pier match the water surface.
+
 ## 1.0.13
 
 ### Shore hamlets

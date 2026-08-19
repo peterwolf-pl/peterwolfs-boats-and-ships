@@ -37,7 +37,6 @@ import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.chunk.ChunkGenerator;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
@@ -47,7 +46,7 @@ import net.minecraft.world.level.block.Rotation;
  * Shore hamlet: flat-roof oak huts with bamboo doors, crop plots and a port.
  * One in ten settlements is large and includes a lighthouse.
  *
- * Local axes: {@code x} along the shore, {@code z} toward open water, {@code y} up from the bank.
+ * Local axes: {@code x} along the shore, {@code z} toward open water, {@code y} up from the waterline.
  */
 public final class WatermanSettlementPiece extends StructurePiece {
 	private static final int SMALL_WIDTH = 28;
@@ -76,7 +75,7 @@ public final class WatermanSettlementPiece extends StructurePiece {
 		super(
 			ModStructures.WATERMAN_SETTLEMENT_PIECE,
 			0,
-			boundingBoxFor(large, shore.waterDir(), originX(shore, large), originZ(shore, large), shore.landY())
+			boundingBoxFor(large, shore.waterDir(), originX(shore, large), originZ(shore, large), shore.waterY())
 		);
 		this.setOrientation(Direction.SOUTH);
 		this.large = large;
@@ -162,27 +161,42 @@ public final class WatermanSettlementPiece extends StructurePiece {
 		if (this.floorY >= 0) {
 			return true;
 		}
+		int waterY = detectWaterSurface(level);
+		if (waterY == Integer.MIN_VALUE) {
+			waterY = level.getSeaLevel() - 1;
+		}
+		this.alignFloorTo(waterY);
+		return true;
+	}
+
+	/** Average top water-block Y on the water-facing half of the hamlet. */
+	private int detectWaterSurface(WorldGenLevel level) {
 		long total = 0L;
 		int count = 0;
-		for (int z = 2; z < this.landDepth - 1; z++) {
-			for (int x = 2; x < this.layoutWidth - 2; x++) {
+		for (int z = this.landDepth; z < this.layoutDepth; z += 2) {
+			for (int x = 2; x < this.layoutWidth - 2; x += 2) {
 				BlockPos world = this.localToWorld(x, 0, z);
-				int y = level.getHeight(Heightmap.Types.WORLD_SURFACE_WG, world.getX(), world.getZ());
-				BlockPos surface = new BlockPos(world.getX(), y, world.getZ());
-				if (level.getFluidState(surface).is(FluidTags.WATER) || level.getFluidState(surface.below()).is(FluidTags.WATER)) {
-					continue;
+				int y = findWaterSurface(level, world.getX(), world.getZ());
+				if (y != Integer.MIN_VALUE) {
+					total += y;
+					count++;
 				}
-				total += y;
-				count++;
 			}
 		}
 		if (count == 0) {
-			this.floorY = this.boundingBox.minY() + 4;
-			return true;
+			for (int x = 1; x < this.layoutWidth - 1; x++) {
+				BlockPos world = this.localToWorld(x, 0, this.landDepth);
+				int y = findWaterSurface(level, world.getX(), world.getZ());
+				if (y != Integer.MIN_VALUE) {
+					total += y;
+					count++;
+				}
+			}
 		}
-		int avg = (int) (total / count);
-		this.alignFloorTo(avg);
-		return true;
+		if (count == 0) {
+			return Integer.MIN_VALUE;
+		}
+		return (int) (total / count);
 	}
 
 	private void prepareGround(WorldGenLevel level, BoundingBox chunkBB) {
@@ -678,8 +692,8 @@ public final class WatermanSettlementPiece extends StructurePiece {
 	}
 
 	private int findWaterSurface(WorldGenLevel level, int x, int z) {
-		int top = this.boundingBox.maxY();
-		int bottom = Math.max(level.getMinY() + 1, this.boundingBox.minY() - 8);
+		int top = Math.max(this.boundingBox.maxY(), level.getSeaLevel() + 8);
+		int bottom = Math.max(level.getMinY() + 1, Math.min(this.boundingBox.minY() - 8, level.getSeaLevel() - 16));
 		for (int y = top; y >= bottom; y--) {
 			BlockPos pos = new BlockPos(x, y, z);
 			if (level.getFluidState(pos).is(FluidTags.WATER) && !level.getFluidState(pos.above()).is(FluidTags.WATER)) {
