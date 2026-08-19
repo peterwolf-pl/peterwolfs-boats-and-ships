@@ -22,7 +22,7 @@ Hamlets generate on the **shore of a large body of water**. They are never place
 
 Every settlement has:
 
-- Simple **oak huts** with **flat slab roofs** and **bamboo doors**, each with a bed and a chest
+- Simple wooden huts with **flat roofs** and **bamboo doors** (oak, spruce, dark oak, birch, mangrove or bamboo). Huts standing in water sit on stilts and get a **wooden boardwalk** to shore
 - **Crop plots** (wheat, carrots, potatoes) with irrigation
 - A **port** — spruce pier, lanterns, and docked River Skiff / Explorer Sloop vessels (Merchant Schooner on large hamlets)
 - Resident watermen who remember that port

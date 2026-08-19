@@ -28,6 +28,8 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
 import net.minecraft.world.level.block.SlabBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
@@ -257,50 +259,292 @@ public final class WatermanSettlementPiece extends StructurePiece {
 			: new int[][]{{3, 10}, {11, 8}, {19, 10}};
 		int shift = this.layoutVariant == 1 ? 1 : (this.layoutVariant == 2 ? -1 : 0);
 		for (int i = 0; i < huts.length; i++) {
-			int x = Math.max(1, Math.min(this.layoutWidth - 7, huts[i][0] + shift));
-			int z = Math.max(6, Math.min(this.landDepth - 8, huts[i][1] + shift));
-			buildHut(level, chunkBB, random, x, z, i);
+			int style = Math.floorMod(i + this.layoutVariant, 6);
+			int w = hutWidth(style);
+			int d = hutDepth(style);
+			int x = Math.max(1, Math.min(this.layoutWidth - w - 2, huts[i][0] + shift));
+			int z = Math.max(5, Math.min(this.landDepth - d - 3, huts[i][1] + shift));
+			buildHut(level, chunkBB, random, x, z, style);
 		}
 	}
 
+	private static int hutWidth(int style) {
+		return switch (style) {
+			case 1, 4 -> 6;
+			case 5 -> 4;
+			default -> 5;
+		};
+	}
+
+	private static int hutDepth(int style) {
+		return switch (style) {
+			case 2, 4 -> 6;
+			default -> 5;
+		};
+	}
+
 	private void buildHut(WorldGenLevel level, BoundingBox chunkBB, RandomSource random, int ox, int oz, int style) {
-		int w = 5;
-		int d = 5;
-		BlockState wall = Blocks.OAK_PLANKS.defaultBlockState();
-		BlockState log = Blocks.OAK_LOG.defaultBlockState().setValue(RotatedPillarBlock.AXIS, Direction.Axis.Y);
+		int w = hutWidth(style);
+		int d = hutDepth(style);
+		int wallH = (style == 1 || style == 4) ? 3 : 2;
+		HutKit kit = hutKit(style);
+		boolean onWater = hutSitsOnWater(level, ox, oz, w, d);
+
 		for (int z = oz; z <= oz + d; z++) {
 			for (int x = ox; x <= ox + w; x++) {
-				this.set(level, chunkBB, x, 0, z, Blocks.OAK_PLANKS.defaultBlockState());
-				boolean edge = x == ox || x == ox + w || z == oz || z == oz + d;
-				if (edge) {
-					boolean corner = (x == ox || x == ox + w) && (z == oz || z == oz + d);
-					this.set(level, chunkBB, x, 1, z, corner ? log : wall);
-					this.set(level, chunkBB, x, 2, z, corner ? log : wall);
-				} else {
-					this.set(level, chunkBB, x, 1, z, Blocks.AIR.defaultBlockState());
-					this.set(level, chunkBB, x, 2, z, Blocks.AIR.defaultBlockState());
+				boolean waterCol = this.isWaterColumn(level, x, z);
+				this.set(level, chunkBB, x, 0, z, kit.floor);
+				if (waterCol) {
+					this.fillDown(level, chunkBB, x, -1, z, kit.log);
 				}
-				this.set(level, chunkBB, x, 3, z, Blocks.OAK_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM));
+				boolean edge = x == ox || x == ox + w || z == oz || z == oz + d;
+				boolean corner = (x == ox || x == ox + w) && (z == oz || z == oz + d);
+				for (int y = 1; y <= wallH; y++) {
+					if (edge) {
+						this.set(level, chunkBB, x, y, z, corner ? kit.log : kit.wall);
+					} else {
+						this.set(level, chunkBB, x, y, z, Blocks.AIR.defaultBlockState());
+					}
+				}
 			}
 		}
-		int doorX = ox + w / 2;
-		int doorZ = oz + d;
-		placeBambooDoor(level, chunkBB, doorX, 1, doorZ, Direction.SOUTH);
-		this.set(level, chunkBB, ox + 1, 2, oz, Blocks.GLASS_PANE.defaultBlockState());
-		this.set(level, chunkBB, ox + w - 1, 2, oz, Blocks.GLASS_PANE.defaultBlockState());
-		this.set(level, chunkBB, ox, 2, oz + 2, Blocks.GLASS_PANE.defaultBlockState());
-		this.set(level, chunkBB, ox + w, 2, oz + 2, Blocks.GLASS_PANE.defaultBlockState());
+		placeHutRoof(level, chunkBB, ox, oz, w, d, wallH, style, kit);
 
-		DyeColor bedColor = switch (style % 3) {
-			case 1 -> DyeColor.CYAN;
-			case 2 -> DyeColor.WHITE;
+		Direction doorFacing = onWater ? Direction.NORTH : Direction.SOUTH;
+		int doorX = ox + w / 2;
+		int doorZ = onWater ? oz : oz + d;
+		placeBambooDoor(level, chunkBB, doorX, 1, doorZ, doorFacing);
+		placeHutWindows(level, chunkBB, ox, oz, w, d, wallH, style, kit, doorX, doorZ);
+
+		DyeColor bedColor = switch (style) {
+			case 1 -> DyeColor.BROWN;
+			case 2 -> DyeColor.ORANGE;
+			case 3 -> DyeColor.WHITE;
+			case 4 -> DyeColor.GREEN;
+			case 5 -> DyeColor.YELLOW;
 			default -> DyeColor.LIGHT_BLUE;
 		};
-		placeBed(level, chunkBB, ox + 1, 1, oz + 1, Direction.SOUTH, bedColor);
-		placeStockedChest(level, chunkBB, ox + w - 1, 1, oz + 1, Direction.WEST, random);
-		this.set(level, chunkBB, ox + 1, 1, oz + 3, Blocks.BARREL.defaultBlockState());
-		this.set(level, chunkBB, ox + 2, 2, oz + 2, Blocks.LANTERN.defaultBlockState());
-		this.set(level, chunkBB, doorX, 0, doorZ + 1, Blocks.DIRT_PATH.defaultBlockState());
+		int bedZ = onWater ? oz + d - 2 : oz + 1;
+		placeBed(level, chunkBB, ox + 1, 1, bedZ, Direction.SOUTH, bedColor);
+		placeStockedChest(level, chunkBB, ox + w - 1, 1, onWater ? oz + d - 1 : oz + 1, Direction.WEST, random);
+		this.set(level, chunkBB, ox + 1, 1, oz + d / 2, Blocks.BARREL.defaultBlockState());
+		this.set(level, chunkBB, ox + w / 2, wallH, oz + d / 2, Blocks.LANTERN.defaultBlockState());
+		if (style == 1 || style == 4) {
+			this.set(level, chunkBB, ox + 1, wallH + 1, oz + 1, Blocks.COBBLESTONE.defaultBlockState());
+			this.set(level, chunkBB, ox + 1, wallH + 2, oz + 1, Blocks.COBBLESTONE_WALL.defaultBlockState());
+		}
+		if (style == 3) {
+			this.set(level, chunkBB, ox + w - 1, 1, oz + d / 2, Blocks.POTTED_FERN.defaultBlockState());
+		} else if (style == 5) {
+			this.set(level, chunkBB, ox + w - 1, 1, oz + 2, Blocks.CRAFTING_TABLE.defaultBlockState());
+		}
+
+		if (onWater) {
+			buildBoardwalk(level, chunkBB, doorX, doorZ, Direction.NORTH);
+		} else {
+			int stepZ = doorZ + 1;
+			this.set(level, chunkBB, doorX, 0, stepZ, Blocks.DIRT_PATH.defaultBlockState());
+			if (style % 2 == 0) {
+				this.set(level, chunkBB, doorX, 1, stepZ, kit.stair.setValue(StairBlock.FACING, Direction.NORTH));
+			}
+		}
+	}
+
+	private boolean hutSitsOnWater(WorldGenLevel level, int ox, int oz, int w, int d) {
+		for (int z = oz; z <= oz + d; z++) {
+			for (int x = ox; x <= ox + w; x++) {
+				if (this.isWaterColumn(level, x, z)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private void placeHutRoof(
+		WorldGenLevel level,
+		BoundingBox chunkBB,
+		int ox,
+		int oz,
+		int w,
+		int d,
+		int wallH,
+		int style,
+		HutKit kit
+	) {
+		int roofY = wallH + 1;
+		int pad = (style == 1 || style == 5) ? 1 : 0;
+		for (int z = oz - pad; z <= oz + d + pad; z++) {
+			for (int x = ox - pad; x <= ox + w + pad; x++) {
+				boolean overhang = x < ox || x > ox + w || z < oz || z > oz + d;
+				BlockState roof = switch (style) {
+					case 2 -> kit.wall;
+					case 4 -> overhang ? kit.slab : kit.wall;
+					default -> kit.slab;
+				};
+				this.set(level, chunkBB, x, roofY, z, roof);
+				if (style == 4 && !overhang && ((x + z) & 1) == 0) {
+					this.set(level, chunkBB, x, roofY + 1, z, Blocks.MOSS_CARPET.defaultBlockState());
+				}
+			}
+		}
+		if (style == 3 || style == 5) {
+			for (int x = ox; x <= ox + w; x++) {
+				this.set(level, chunkBB, x, roofY, oz - 1, kit.trap.setValue(TrapDoorBlock.FACING, Direction.NORTH));
+				this.set(level, chunkBB, x, roofY, oz + d + 1, kit.trap.setValue(TrapDoorBlock.FACING, Direction.SOUTH));
+			}
+		}
+	}
+
+	private void placeHutWindows(
+		WorldGenLevel level,
+		BoundingBox chunkBB,
+		int ox,
+		int oz,
+		int w,
+		int d,
+		int wallH,
+		int style,
+		HutKit kit,
+		int doorX,
+		int doorZ
+	) {
+		int wy = Math.min(2, wallH);
+		BlockState window = switch (style) {
+			case 2 -> Blocks.OAK_FENCE.defaultBlockState();
+			case 5 -> kit.trap.setValue(TrapDoorBlock.FACING, Direction.NORTH);
+			default -> Blocks.GLASS_PANE.defaultBlockState();
+		};
+		if (doorZ != oz) {
+			this.set(level, chunkBB, ox + 1, wy, oz, window);
+			if (w > 4) {
+				this.set(level, chunkBB, ox + w - 1, wy, oz, window);
+			}
+		}
+		if (doorZ != oz + d) {
+			this.set(level, chunkBB, ox + 1, wy, oz + d, window);
+			if (w > 4) {
+				this.set(level, chunkBB, ox + w - 1, wy, oz + d, window);
+			}
+		}
+		this.set(level, chunkBB, ox, wy, oz + d / 2, window);
+		this.set(level, chunkBB, ox + w, wy, oz + d / 2, window);
+	}
+
+	/** Spruce plank walk from a water-side door inland until the bank or village path. */
+	private void buildBoardwalk(WorldGenLevel level, BoundingBox chunkBB, int doorX, int doorZ, Direction inland) {
+		int x = doorX;
+		int z = doorZ;
+		int pathX = this.layoutWidth / 2;
+		BlockState deck = Blocks.SPRUCE_PLANKS.defaultBlockState();
+		BlockState slab = Blocks.SPRUCE_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM);
+		BlockState piling = Blocks.SPRUCE_LOG.defaultBlockState().setValue(RotatedPillarBlock.AXIS, Direction.Axis.Y);
+		boolean reachedLand = false;
+		for (int i = 0; i < 14; i++) {
+			x += inland.getStepX();
+			z += inland.getStepZ();
+			if (x < 1 || x >= this.layoutWidth - 2 || z < 1 || z >= this.layoutDepth - 1) {
+				break;
+			}
+			boolean water = this.isWaterColumn(level, x, z);
+			this.set(level, chunkBB, x, 0, z, water ? deck : Blocks.DIRT_PATH.defaultBlockState());
+			this.set(level, chunkBB, x + 1, 0, z, water ? slab : Blocks.DIRT_PATH.defaultBlockState());
+			if (water) {
+				this.fillDown(level, chunkBB, x, -1, z, piling);
+				if ((i & 1) == 0) {
+					this.set(level, chunkBB, x - 1, 0, z, piling);
+					this.fillDown(level, chunkBB, x - 1, -1, z, piling);
+					this.set(level, chunkBB, x - 1, 1, z, Blocks.OAK_FENCE.defaultBlockState());
+					this.set(level, chunkBB, x + 2, 0, z, piling);
+					this.fillDown(level, chunkBB, x + 2, -1, z, piling);
+					this.set(level, chunkBB, x + 2, 1, z, Blocks.OAK_FENCE.defaultBlockState());
+				}
+			} else {
+				reachedLand = true;
+				break;
+			}
+			if (i > 3 && x != pathX && this.isWaterColumn(level, x + Integer.compare(pathX, x), z)) {
+				x += Integer.compare(pathX, x);
+			}
+		}
+		if (!reachedLand && x != pathX) {
+			int dir = Integer.compare(pathX, x);
+			for (int i = 0; i < 10 && x != pathX; i++) {
+				x += dir;
+				if (x < 1 || x >= this.layoutWidth - 1) {
+					break;
+				}
+				boolean water = this.isWaterColumn(level, x, z);
+				this.set(level, chunkBB, x, 0, z, water ? deck : Blocks.DIRT_PATH.defaultBlockState());
+				if (water) {
+					this.fillDown(level, chunkBB, x, -1, z, piling);
+				} else {
+					break;
+				}
+			}
+		}
+	}
+
+	private static HutKit hutKit(int style) {
+		return switch (style) {
+			case 1 -> new HutKit(
+				Blocks.SPRUCE_PLANKS.defaultBlockState(),
+				axisY(Blocks.SPRUCE_LOG.defaultBlockState()),
+				Blocks.SPRUCE_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM),
+				Blocks.SPRUCE_PLANKS.defaultBlockState(),
+				Blocks.SPRUCE_STAIRS.defaultBlockState(),
+				Blocks.SPRUCE_TRAPDOOR.defaultBlockState()
+			);
+			case 2 -> new HutKit(
+				Blocks.DARK_OAK_PLANKS.defaultBlockState(),
+				axisY(Blocks.DARK_OAK_LOG.defaultBlockState()),
+				Blocks.DARK_OAK_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM),
+				Blocks.DARK_OAK_PLANKS.defaultBlockState(),
+				Blocks.DARK_OAK_STAIRS.defaultBlockState(),
+				Blocks.DARK_OAK_TRAPDOOR.defaultBlockState()
+			);
+			case 3 -> new HutKit(
+				Blocks.BIRCH_PLANKS.defaultBlockState(),
+				axisY(Blocks.STRIPPED_BIRCH_LOG.defaultBlockState()),
+				Blocks.BIRCH_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM),
+				Blocks.BIRCH_PLANKS.defaultBlockState(),
+				Blocks.BIRCH_STAIRS.defaultBlockState(),
+				Blocks.BIRCH_TRAPDOOR.defaultBlockState()
+			);
+			case 4 -> new HutKit(
+				Blocks.MANGROVE_PLANKS.defaultBlockState(),
+				axisY(Blocks.MANGROVE_LOG.defaultBlockState()),
+				Blocks.MANGROVE_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM),
+				Blocks.MANGROVE_PLANKS.defaultBlockState(),
+				Blocks.MANGROVE_STAIRS.defaultBlockState(),
+				Blocks.MANGROVE_TRAPDOOR.defaultBlockState()
+			);
+			case 5 -> new HutKit(
+				Blocks.BAMBOO_PLANKS.defaultBlockState(),
+				axisY(Blocks.BAMBOO_BLOCK.defaultBlockState()),
+				Blocks.BAMBOO_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM),
+				Blocks.BAMBOO_PLANKS.defaultBlockState(),
+				Blocks.BAMBOO_STAIRS.defaultBlockState(),
+				Blocks.BAMBOO_TRAPDOOR.defaultBlockState()
+			);
+			default -> new HutKit(
+				Blocks.OAK_PLANKS.defaultBlockState(),
+				axisY(Blocks.OAK_LOG.defaultBlockState()),
+				Blocks.OAK_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM),
+				Blocks.OAK_PLANKS.defaultBlockState(),
+				Blocks.OAK_STAIRS.defaultBlockState(),
+				Blocks.OAK_TRAPDOOR.defaultBlockState()
+			);
+		};
+	}
+
+	private static BlockState axisY(BlockState log) {
+		return log.hasProperty(RotatedPillarBlock.AXIS)
+			? log.setValue(RotatedPillarBlock.AXIS, Direction.Axis.Y)
+			: log;
+	}
+
+	private record HutKit(BlockState wall, BlockState log, BlockState slab, BlockState floor, BlockState stair, BlockState trap) {
 	}
 
 	private BlockPos buildPort(WorldGenLevel level, BoundingBox chunkBB) {

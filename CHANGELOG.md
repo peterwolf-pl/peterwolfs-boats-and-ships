@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.13
+
+### Shore hamlets
+- Huts that sit on water now stand on log stilts and get a **spruce boardwalk** inland to the bank or village path.
+- Six hut looks instead of one: oak, spruce, dark oak, birch, mangrove and bamboo, with different footprints, roofs, windows and small porch details. Bamboo doors stay on every house.
+
 ## 1.0.12
 
 ### Waterman settlements
