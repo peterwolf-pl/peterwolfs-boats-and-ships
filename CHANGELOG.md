@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.16
+
+### Watermen
+- Autopilot now yields to and overtakes other watercraft instead of driving into them at busy atolls.
+- If hulls already lock together, the helmsman uses reverse and turns away until the jam breaks.
+- Atoll trade berths are spread around the lagoon so several watermen no longer aim at the same point.
+
+### Shore hamlets
+- Hut beds are no longer overwritten by barrels: the barrel sits on the opposite wall so both bed halves stay intact.
+
 ## 1.0.15
 
 ### Shore hamlets

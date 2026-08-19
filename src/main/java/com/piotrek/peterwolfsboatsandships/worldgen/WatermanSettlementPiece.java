@@ -337,10 +337,9 @@ public final class WatermanSettlementPiece extends StructurePiece {
 			case 5 -> DyeColor.YELLOW;
 			default -> DyeColor.LIGHT_BLUE;
 		};
-		int bedZ = onWater ? oz + d - 2 : oz + 1;
-		placeBed(level, chunkBB, ox + 1, 1, bedZ, Direction.SOUTH, bedColor);
+		int bedFootZ = onWater ? oz + d - 2 : oz + 1;
 		placeStockedChest(level, chunkBB, ox + w - 1, 1, onWater ? oz + d - 1 : oz + 1, Direction.WEST, random);
-		this.set(level, chunkBB, ox + 1, 1, oz + d / 2, Blocks.BARREL.defaultBlockState());
+		this.set(level, chunkBB, ox + w - 1, 1, onWater ? oz + 1 : oz + d - 1, Blocks.BARREL.defaultBlockState());
 		this.set(level, chunkBB, ox + w / 2, wallH, oz + d / 2, Blocks.LANTERN.defaultBlockState());
 		if (style == 1 || style == 4) {
 			this.set(level, chunkBB, ox + 1, wallH + 1, oz + 1, Blocks.COBBLESTONE.defaultBlockState());
@@ -349,8 +348,12 @@ public final class WatermanSettlementPiece extends StructurePiece {
 		if (style == 3) {
 			this.set(level, chunkBB, ox + w - 1, 1, oz + d / 2, Blocks.POTTED_FERN.defaultBlockState());
 		} else if (style == 5) {
-			this.set(level, chunkBB, ox + w - 1, 1, oz + 2, Blocks.CRAFTING_TABLE.defaultBlockState());
+			int tableZ = onWater ? oz + 2 : Math.min(oz + 2, oz + d - 2);
+			if (tableZ != (onWater ? oz + 1 : oz + d - 1)) {
+				this.set(level, chunkBB, ox + w - 1, 1, tableZ, Blocks.CRAFTING_TABLE.defaultBlockState());
+			}
 		}
+		placeBed(level, chunkBB, ox + 1, 1, bedFootZ, Direction.SOUTH, bedColor);
 
 		if (onWater) {
 			buildBoardwalk(level, chunkBB, doorX, doorZ, Direction.NORTH);

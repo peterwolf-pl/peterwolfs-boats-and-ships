@@ -79,6 +79,31 @@ final class AtollTradeCompat {
 		);
 	}
 
+	/**
+	 * Spreads a shared port-facing berth along the atoll so several watermen do
+	 * not all aim at the same block. {@code salt} is stable per villager.
+	 */
+	static Vec3 spreadBerth(Vec3 baseBerth, BlockPos atollCenter, int salt) {
+		double centerX = atollCenter.getX() + 0.5D;
+		double centerZ = atollCenter.getZ() + 0.5D;
+		double dx = baseBerth.x - centerX;
+		double dz = baseBerth.z - centerZ;
+		double radius = Math.sqrt(dx * dx + dz * dz);
+		if (radius < 0.001D) {
+			return baseBerth;
+		}
+		double angle = Math.atan2(dz, dx);
+		int slot = Math.floorMod(salt, 11) - 5;
+		int ring = Math.floorMod(salt / 11, 3) - 1;
+		double spreadRadius = Math.max(32.0D, radius + ring * 7.0D);
+		double spreadAngle = angle + Math.toRadians(slot * 11.0D);
+		return new Vec3(
+			centerX + Math.cos(spreadAngle) * spreadRadius,
+			baseBerth.y,
+			centerZ + Math.sin(spreadAngle) * spreadRadius
+		);
+	}
+
 	private static long cacheKey(BlockPos port) {
 		int regionX = port.getX() >> 9;
 		int regionZ = port.getZ() >> 9;
