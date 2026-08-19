@@ -19,6 +19,10 @@ final class AtollTradeCompat {
 	private static final int STRUCTURE_SEARCH_RADIUS_CHUNKS = 48;
 	private static final long SEARCH_CACHE_TICKS = 6000L;
 	private static final double SAFE_BERTH_RADIUS = 56.0D;
+	static final int BERTH_SLOTS = 24;
+	static final int BERTH_RINGS = 4;
+	private static final double INNER_BERTH_RADIUS = 48.0D;
+	private static final double BERTH_RING_SPACING = 9.0D;
 	private static final TagKey<Structure> TRADE_ATOLLS = TagKey.create(
 		Registries.STRUCTURE,
 		Identifier.fromNamespaceAndPath("peterwolfs_boats_and_ships", "waterman_trade_atolls")
@@ -80,28 +84,25 @@ final class AtollTradeCompat {
 	}
 
 	/**
-	 * Spreads a shared port-facing berth along the atoll so several watermen do
-	 * not all aim at the same block. {@code salt} is stable per villager.
+	 * Spreads trade berths around the whole atoll. {@code salt} is stable per
+	 * villager so neighbours pick different compass slots and radius rings.
 	 */
 	static Vec3 spreadBerth(Vec3 baseBerth, BlockPos atollCenter, int salt) {
 		double centerX = atollCenter.getX() + 0.5D;
 		double centerZ = atollCenter.getZ() + 0.5D;
-		double dx = baseBerth.x - centerX;
-		double dz = baseBerth.z - centerZ;
-		double radius = Math.sqrt(dx * dx + dz * dz);
-		if (radius < 0.001D) {
-			return baseBerth;
-		}
-		double angle = Math.atan2(dz, dx);
-		int slot = Math.floorMod(salt, 11) - 5;
-		int ring = Math.floorMod(salt / 11, 3) - 1;
-		double spreadRadius = Math.max(32.0D, radius + ring * 7.0D);
-		double spreadAngle = angle + Math.toRadians(slot * 11.0D);
+		int slot = Math.floorMod(salt, BERTH_SLOTS);
+		int ring = Math.floorMod(salt / BERTH_SLOTS, BERTH_RINGS);
+		double spreadRadius = berthRadius(ring);
+		double spreadAngle = Math.toRadians(slot * (360.0D / BERTH_SLOTS));
 		return new Vec3(
 			centerX + Math.cos(spreadAngle) * spreadRadius,
 			baseBerth.y,
 			centerZ + Math.sin(spreadAngle) * spreadRadius
 		);
+	}
+
+	static double berthRadius(int ring) {
+		return INNER_BERTH_RADIUS + Math.floorMod(ring, BERTH_RINGS) * BERTH_RING_SPACING;
 	}
 
 	private static long cacheKey(BlockPos port) {

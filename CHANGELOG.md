@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.17
+
+### Watermen
+- Collision avoidance now starts much earlier: the helmsman turns onto a nearby dodge point instead of slightly nudging a distant waypoint.
+- Starboard tack (wind on the right rail, taken from vanilla cloud drift to the east) has right of way; port tack, overtaking and windward boats keep clear.
+- Reverse to break a jam lasts three times longer.
+- Trade berths ring the whole atoll (24 headings × 4 radii) instead of a short arc on the port-facing side.
+
 ## 1.0.16
 
 ### Watermen

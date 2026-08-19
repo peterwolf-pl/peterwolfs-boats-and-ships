@@ -40,11 +40,17 @@ final class WatermanBoatTripGoal extends Goal {
 	private static final float ATOLL_TRIP_CHANCE = 0.60F;
 	private static final int JAM_TICKS_BEFORE_REVERSE = 4;
 	private static final int TRAFFIC_JAM_TICKS_BEFORE_REVERSE = 16;
-	private static final int MIN_REVERSE_TICKS = 26;
+	private static final int MIN_REVERSE_TICKS = 78;
+	private static final int REVERSE_COLLISION_EXTEND_TICKS = 36;
 	private static final float REVERSE_THRUST = -0.55F;
 	private static final float REVERSE_RUDDER = 1.85F;
-	private static final double TRAFFIC_LOOKAHEAD = 14.0D;
+	private static final double TRAFFIC_LOOKAHEAD = 36.0D;
 	private static final double BERTH_OCCUPIED_RADIUS = 5.75D;
+	/**
+	 * Vanilla {@code CloudRenderer} advances the cloud layer along +X (east).
+	 * That drift is the wind used for starboard/port tack.
+	 */
+	private static final Vec3 CLOUD_DRIFT = new Vec3(1.0D, 0.0D, 0.0D);
 
 	private final WatermanEntity waterman;
 	@Nullable
@@ -678,7 +684,7 @@ final class WatermanBoatTripGoal extends Goal {
 			side = -side;
 		}
 		this.reverseRudder = side * REVERSE_RUDDER;
-		this.reverseTicks = MIN_REVERSE_TICKS + (this.waterman.getId() & 7) * 2;
+		this.reverseTicks = MIN_REVERSE_TICKS + (this.waterman.getId() & 7) * 6;
 		this.tickReverse();
 	}
 
@@ -688,8 +694,8 @@ final class WatermanBoatTripGoal extends Goal {
 			return;
 		}
 		this.reverseTicks--;
-		if (this.ship.horizontalCollision && this.reverseTicks < 10) {
-			this.reverseTicks = 12;
+		if (this.ship.horizontalCollision && this.reverseTicks < 30) {
+			this.reverseTicks = REVERSE_COLLISION_EXTEND_TICKS;
 			this.reverseRudder = -this.reverseRudder;
 		}
 		Vec3 heading = headingOf(this.ship);
@@ -712,45 +718,81 @@ final class WatermanBoatTripGoal extends Goal {
 		}
 		Vec3 heading = headingOf(this.ship);
 		Vec3 starboard = starboardOf(heading);
+		Vec3 ourVel = horizontal(this.ship.getDeltaMovement());
+		if (ourVel.lengthSqr() < 1.0E-4D) {
+			ourVel = heading.scale(0.22D);
+		}
+		boolean weAreStarboardTack = isStarboardTack(this.ship);
 		Vec3 offset = Vec3.ZERO;
 		float thrustScale = 1.0F;
+		boolean givingWay = false;
 		ServerLevel level = (ServerLevel)this.waterman.level();
-		double lookAhead = Math.max(TRAFFIC_LOOKAHEAD, this.ship.getBbWidth() * 3.0D);
+		double lookAhead = Math.max(TRAFFIC_LOOKAHEAD, this.ship.getBbWidth() * 6.0D);
 		for (Entity other : this.findNearbyWatercraft(lookAhead)) {
-			Vec3 toOther = other.position().subtract(this.ship.position());
-			toOther = new Vec3(toOther.x, 0.0D, toOther.z);
+			Vec3 toOther = horizontal(other.position().subtract(this.ship.position()));
 			double distance = toOther.length();
 			if (distance < 0.001D) {
 				continue;
 			}
+			Vec3 otherVel = horizontal(other.getDeltaMovement());
+			if (otherVel.lengthSqr() < 1.0E-4D) {
+				otherVel = headingOf(other).scale(0.08D);
+			}
+			Vec3 relVel = otherVel.subtract(ourVel);
+			double relSpeedSqr = relVel.lengthSqr();
+			double ticksToCpa = 0.0D;
+			Vec3 cpa = toOther;
+			if (relSpeedSqr >= 1.0E-6D) {
+				ticksToCpa = Mth.clamp(-toOther.dot(relVel) / relSpeedSqr, 0.0D, 100.0D);
+				cpa = toOther.add(relVel.scale(ticksToCpa));
+			}
+			double cpaDist = Math.sqrt(cpa.x * cpa.x + cpa.z * cpa.z);
+			double safe = (this.ship.getBbWidth() + other.getBbWidth()) * 0.5D + 4.0D;
 			double along = toOther.dot(heading);
 			double lateral = toOther.dot(starboard);
-			double combinedRadius = (this.ship.getBbWidth() + other.getBbWidth()) * 0.5D + 1.6D;
-			if (along <= 0.15D || along > lookAhead || Math.abs(lateral) > combinedRadius) {
+			boolean closing = ticksToCpa > 0.0D && ticksToCpa < 90.0D && cpaDist < safe * 1.75D;
+			boolean inCorridor = along > -4.0D && along < lookAhead && Math.abs(lateral) < safe + 10.0D;
+			if (!closing && !inCorridor || along < -8.0D && ticksToCpa > 40.0D) {
 				continue;
 			}
-			Vec3 otherHeading = headingOf(other);
-			boolean headOn = otherHeading.dot(heading) < -0.25D;
-			double passSign;
-			if (headOn || Math.abs(lateral) < 0.35D) {
-				passSign = 1.0D;
+
+			boolean theyParked = other.getDeltaMovement().horizontalDistance() < 0.03D;
+			boolean theyStarboardTack = isStarboardTack(other);
+			boolean weOvertake = along > 1.5D && headingOf(other).dot(heading) > 0.45D;
+			boolean weGiveWay;
+			if (theyParked || weOvertake) {
+				weGiveWay = true;
+			} else if (weAreStarboardTack != theyStarboardTack) {
+				// Port tack keeps clear of starboard tack (cloud-wind rule).
+				weGiveWay = !weAreStarboardTack;
 			} else {
-				passSign = lateral >= 0.0D ? -1.0D : 1.0D;
+				weGiveWay = isWindwardOf(this.ship, other);
 			}
-			double desiredGap = combinedRadius + 1.25D;
-			double strength = Mth.clamp(1.0D - along / lookAhead, 0.2D, 1.0D);
-			double extra = Math.max(0.0D, desiredGap - Math.abs(lateral)) * strength;
-			offset = offset.add(starboard.scale(passSign * extra));
-			if (along < 4.0D && Math.abs(lateral) < combinedRadius * 0.7D) {
-				thrustScale = Math.min(thrustScale, 0.32F);
-			} else if (along < 8.0D) {
-				thrustScale = Math.min(thrustScale, 0.62F);
+
+			if (!weGiveWay) {
+				if (ticksToCpa < 18.0D && cpaDist < safe * 0.7D) {
+					double dodge = lateral >= 0.0D ? -1.0D : 1.0D;
+					offset = offset.add(starboard.scale(dodge * 4.0D));
+					thrustScale = Math.min(thrustScale, 0.72F);
+				}
+				continue;
+			}
+
+			givingWay = true;
+			double urgency = 1.0D - Mth.clamp(Math.min(distance, ticksToCpa * 0.35D) / lookAhead, 0.0D, 1.0D);
+			double extra = Mth.lerp(urgency, 7.0D, 16.0D);
+			offset = offset.add(starboard.scale(extra));
+			if (distance < 20.0D || ticksToCpa < 50.0D) {
+				thrustScale = Math.min(thrustScale, 0.34F);
+			} else {
+				thrustScale = Math.min(thrustScale, 0.58F);
 			}
 		}
+
 		double offsetLength = Math.sqrt(offset.x * offset.x + offset.z * offset.z);
-		if (offsetLength > 10.0D) {
-			offset = offset.scale(10.0D / offsetLength);
-			offsetLength = 10.0D;
+		if (offsetLength > 16.0D) {
+			offset = offset.scale(16.0D / offsetLength);
+			offsetLength = 16.0D;
 		}
 		if (offsetLength < 0.05D) {
 			return new TrafficManeuver(target, cruiseThrust * thrustScale);
@@ -762,10 +804,19 @@ final class WatermanBoatTripGoal extends Goal {
 			if (WaterRoutePlanner.isSegmentNavigable(level, this.ship, this.ship.position(), otherSide)) {
 				usedOffset = offset.scale(-1.0D);
 			} else {
-				return new TrafficManeuver(target, cruiseThrust * Math.min(thrustScale, 0.4F));
+				return new TrafficManeuver(target, cruiseThrust * Math.min(thrustScale, 0.35F));
 			}
 		}
-		return new TrafficManeuver(target.add(usedOffset), cruiseThrust * thrustScale);
+		Vec3 toTarget = horizontal(target.subtract(this.ship.position()));
+		double targetDist = toTarget.length();
+		if (targetDist < 0.001D) {
+			return new TrafficManeuver(this.ship.position().add(usedOffset), cruiseThrust * thrustScale);
+		}
+		// Steer a short probe ahead plus the lateral offset so the hull turns now,
+		// instead of nudging a distant waypoint by a few degrees.
+		double probe = givingWay ? 10.0D : Math.min(12.0D, Math.max(6.0D, targetDist * 0.4D));
+		Vec3 nearField = this.ship.position().add(toTarget.scale(probe / targetDist)).add(usedOffset);
+		return new TrafficManeuver(nearField, cruiseThrust * thrustScale);
 	}
 
 	private void relocateOccupiedAtollBerth() {
@@ -773,7 +824,7 @@ final class WatermanBoatTripGoal extends Goal {
 			return;
 		}
 		double distanceSqr = horizontalDistanceSqr(this.ship.position(), this.excursionTarget);
-		if (distanceSqr >= 24.0D * 24.0D || distanceSqr <= 7.0D * 7.0D) {
+		if (distanceSqr >= 40.0D * 40.0D || distanceSqr <= 7.0D * 7.0D) {
 			return;
 		}
 		if (!this.isBerthOccupied(this.excursionTarget, BERTH_OCCUPIED_RADIUS)) {
@@ -819,12 +870,11 @@ final class WatermanBoatTripGoal extends Goal {
 		}
 		double baseAngle = Math.atan2(dz, dx);
 		int salt = this.waterman.getId();
-		double[] angleOffsets = {18.0D, -18.0D, 36.0D, -36.0D, 54.0D, -54.0D, 72.0D, -72.0D};
-		double[] radiusDeltas = {0.0D, 8.0D, -8.0D, 14.0D};
-		for (double radiusDelta : radiusDeltas) {
-			for (double angleOffset : angleOffsets) {
-				double angle = baseAngle + Math.toRadians(angleOffset + (salt % 12) * 3.0D);
-				double candidateRadius = Math.max(24.0D, radius + radiusDelta);
+		for (int ring = 0; ring < AtollTradeCompat.BERTH_RINGS; ring++) {
+			double candidateRadius = AtollTradeCompat.berthRadius(ring);
+			for (int step = 1; step <= AtollTradeCompat.BERTH_SLOTS; step++) {
+				int slot = Math.floorMod(salt + step, AtollTradeCompat.BERTH_SLOTS);
+				double angle = baseAngle + Math.toRadians(slot * (360.0D / AtollTradeCompat.BERTH_SLOTS));
 				Vec3 candidate = new Vec3(
 					origin.x + Math.cos(angle) * candidateRadius,
 					this.excursionTarget.y,
@@ -949,6 +999,27 @@ final class WatermanBoatTripGoal extends Goal {
 
 	private static Vec3 starboardOf(Vec3 heading) {
 		return new Vec3(-heading.z, 0.0D, heading.x);
+	}
+
+	private static Vec3 horizontal(Vec3 vector) {
+		return new Vec3(vector.x, 0.0D, vector.z);
+	}
+
+	/** Wind comes from the opposite of cloud drift; starboard tack has it on the right rail. */
+	private static boolean isStarboardTack(Entity vessel) {
+		Vec3 heading = headingOf(vessel);
+		Vec3 starboard = starboardOf(heading);
+		Vec3 windFrom = CLOUD_DRIFT.scale(-1.0D);
+		double fromStarboard = windFrom.dot(starboard);
+		if (Math.abs(fromStarboard) < 0.08D) {
+			return windFrom.dot(heading) <= 0.0D;
+		}
+		return fromStarboard > 0.0D;
+	}
+
+	private static boolean isWindwardOf(Entity us, Entity other) {
+		Vec3 windFrom = CLOUD_DRIFT.scale(-1.0D);
+		return us.position().subtract(other.position()).dot(windFrom) > 0.0D;
 	}
 
 	@Nullable
