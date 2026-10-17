@@ -16,5 +16,14 @@
   "container.peterwolfs_boats_and_ships.explorer_sloop": "Explorer Sloop Locker",
   "container.peterwolfs_boats_and_ships.merchant_schooner": "Merchant Schooner Hold",
   "command.peterwolfs_boats_and_ships.spawn_settlement_success": "Spawned a waterman settlement at %s, %s, %s",
-  "command.peterwolfs_boats_and_ships.spawn_settlement_no_water": "Stand on the shore of a large body of water first"
+  "command.peterwolfs_boats_and_ships.spawn_settlement_no_water": "Stand on the shore of a large body of water first",
+  "command.peterwolfs_boats_and_ships.send_home_success": "Sent %s watermen home and %s to search for a home (within %s blocks)",
+  "command.peterwolfs_boats_and_ships.send_home_none": "No watermen within %s blocks",
+  "command.peterwolfs_boats_and_ships.scale_success": "Scaled %s ships (Explorer Sloops & Merchant Schooners) to %s× (within %s blocks)",
+  "command.peterwolfs_boats_and_ships.scale_double_success": "Doubled the size of %s ships (within %s blocks)",
+  "command.peterwolfs_boats_and_ships.scale_reset_success": "Reset scale of %s ships to default 2× (within %s blocks)",
+  "command.peterwolfs_boats_and_ships.scale_none": "No Explorer Sloops or Merchant Schooners found within %s blocks",
+  "tag.item.peterwolfs_boats_and_ships.barrels": "Wooden Barrels",
+  "tag.item.peterwolfs_boats_and_ships.sticks": "Sticks",
+  "tag.item.peterwolfs_boats_and_ships.chains": "Chains"
 }

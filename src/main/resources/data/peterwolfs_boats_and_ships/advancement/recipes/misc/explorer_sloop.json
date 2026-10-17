@@ -13,7 +13,7 @@
     },
     "has_the_recipe": {
       "conditions": {
-        "recipe": "peterwolfs_boats_and_ships:explorer_sloop"
+        "recipes": "peterwolfs_boats_and_ships:explorer_sloop"
       },
       "trigger": "minecraft:recipe_unlocked"
     }

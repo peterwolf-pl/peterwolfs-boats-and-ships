@@ -115,9 +115,9 @@ public final class LighthouseLightRenderer implements BlockEntityRenderer<Lighth
 		poseStack.pushPose();
 		// Pivot at lamp center (mid-block, slightly above base).
 		poseStack.translate(0.5D, 0.62D, 0.5D);
-		poseStack.mulPose(Axis.YP.rotationDegrees(yawDegrees));
+		poseStack.rotateDegrees(Axis.YP, yawDegrees);
 		// Point the vertical beacon beam down the local +Z after this pitch.
-		poseStack.mulPose(Axis.XP.rotationDegrees(90.0F));
+		poseStack.rotateDegrees(Axis.XP, 90.0F);
 		// Nudge so the beam starts just outside the glass housing.
 		poseStack.translate(0.0D, 0.35D, 0.0D);
 

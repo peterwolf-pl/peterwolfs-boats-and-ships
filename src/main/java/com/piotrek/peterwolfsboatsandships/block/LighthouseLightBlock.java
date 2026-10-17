@@ -1,6 +1,5 @@
 package com.piotrek.peterwolfsboatsandships.block;
 
-import com.mojang.serialization.MapCodec;
 import com.piotrek.peterwolfsboatsandships.PeterwolfsBoatsAndShipsMod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -31,7 +30,6 @@ import org.jetbrains.annotations.Nullable;
  * Lighthouse lamp. Right-click cycles: rotating spot ray → blinking point light → off.
  */
 public final class LighthouseLightBlock extends BaseEntityBlock {
-	public static final MapCodec<LighthouseLightBlock> CODEC = simpleCodec(LighthouseLightBlock::new);
 	public static final EnumProperty<LighthouseLightMode> MODE = EnumProperty.create("mode", LighthouseLightMode.class);
 	/** Flash phase only: bright when true, dark when false. Spot keeps lit; off keeps unlit. */
 	public static final BooleanProperty LIT = BooleanProperty.create("lit");
@@ -50,11 +48,6 @@ public final class LighthouseLightBlock extends BaseEntityBlock {
 			case FLASH -> state.getValue(LIT) ? 15 : 0;
 			case OFF -> 0;
 		};
-	}
-
-	@Override
-	protected MapCodec<? extends BaseEntityBlock> codec() {
-		return CODEC;
 	}
 
 	@Override

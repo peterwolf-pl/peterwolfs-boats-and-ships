@@ -1,0 +1,2 @@
+[2026-09-25T01:08:40.578Z] [INFO] [EVENT:general] [QUOTA_BALANCED] Worker google-antigravity-3 (100.0% 5h) ➔ thinking: HIGH | Worker google-antigravity-4 (88.6% 5h) ➔ thinking: MEDIUM
+[2026-09-25T01:40:38.273Z] [INFO] [EVENT:general] [QUOTA_BALANCED] Worker antigravity (100.0% 5h) ➔ thinking: MEDIUM | Worker google-antigravity-4 (82.5% 5h) ➔ thinking: OFF

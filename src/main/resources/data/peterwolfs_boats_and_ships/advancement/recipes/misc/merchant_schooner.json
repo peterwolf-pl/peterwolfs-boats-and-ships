@@ -13,7 +13,7 @@
     },
     "has_the_recipe": {
       "conditions": {
-        "recipe": "peterwolfs_boats_and_ships:merchant_schooner"
+        "recipes": "peterwolfs_boats_and_ships:merchant_schooner"
       },
       "trigger": "minecraft:recipe_unlocked"
     }

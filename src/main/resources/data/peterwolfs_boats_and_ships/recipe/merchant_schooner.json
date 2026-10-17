@@ -8,8 +8,8 @@
     "OOO"
   ],
   "key": {
-    "B": "minecraft:barrel",
-    "C": "minecraft:chain",
+    "B": "#peterwolfs_boats_and_ships:barrels",
+    "C": "#peterwolfs_boats_and_ships:chains",
     "O": "minecraft:spruce_planks",
     "W": "minecraft:white_wool"
   },

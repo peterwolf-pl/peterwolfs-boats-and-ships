@@ -15,8 +15,8 @@ public final class MerchantSchoonerEntity extends AbstractShipEntity {
 	@Override protected boolean hasSails() { return true; }
 	@Override protected Item dropItem() { return PeterwolfsBoatsAndShipsMod.MERCHANT_SCHOONER_ITEM; }
 	@Override protected Component cargoTitle() { return Component.translatable("container.peterwolfs_boats_and_ships.merchant_schooner"); }
-	@Override protected net.minecraft.world.phys.Vec3 seatOffset(int index) {
-		if (index == 0) return new net.minecraft.world.phys.Vec3(0.0D, 0.44D, -1.55D);
-		return super.seatOffset(index);
-	}
+	@Override protected double helmSeatY() { return 1.07D; }
+	@Override protected double helmSeatZ() { return -1.85D; }
+	@Override protected double passengerSeatY() { return 0.32D; }
+	@Override protected float defaultScale() { return 2.0F * getGlobalSailingShipScaleMultiplier(); }
 }

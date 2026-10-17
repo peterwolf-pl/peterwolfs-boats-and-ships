@@ -1,0 +1,85 @@
+enabled: false
+masterAccount: google-antigravity-2
+securityAuditorAccount: xai
+securityAuditorEnabled: true
+activeWorkers:
+  - google-antigravity-4
+  - xai
+  - google-antigravity-3
+  - antigravity
+manuallyIdledWorkers: []
+accounts:
+  xai:
+    id: xai
+    provider: xai
+    enabled: true
+    role: security_auditor
+  google-antigravity-2:
+    id: google-antigravity-2
+    provider: antigravity
+    label: liam
+    enabled: true
+    role: worker
+  google-antigravity-3:
+    id: google-antigravity-3
+    provider: antigravity
+    label: "3"
+    enabled: true
+    role: idle
+  google-antigravity-4:
+    id: google-antigravity-4
+    provider: antigravity
+    label: "4"
+    enabled: true
+    role: worker
+  antigravity:
+    id: antigravity
+    provider: antigravity
+    label: liamprssn@gmail.com
+    enabled: true
+    role: idle
+models:
+  master:
+    model: gemini-3.8-flash
+    thinking: high
+  worker:
+    model: gemini-3.8-flash
+    thinking: low
+  auditor:
+    model: grok-4.7
+    thinking: low
+  workers:
+    google-antigravity-2:
+      model: gemini-3.8-flash
+      thinking: medium
+    google-antigravity-3:
+      model: gemini-3.8-flash
+      thinking: high
+    google-antigravity-4:
+      model: gemini-3.8-flash
+      thinking: off
+    xai:
+      model: grok-4.7
+      thinking: low
+    antigravity:
+      model: gemini-3.8-flash
+      thinking: medium
+idleWork:
+  autoIdleWork: true
+  extractSkills: true
+  generateDocs: true
+  assistSecurityAudit: true
+dashboard:
+  autoLaunch: true
+  columns: 155
+  rows: 90
+delegation:
+  enabled: true
+  automatic: true
+  max_workers: 4
+  default_timeout_ms: 300000
+workspace:
+  isolated_workers: true
+review:
+  automatic_merge: false
+  require_security_approval: true

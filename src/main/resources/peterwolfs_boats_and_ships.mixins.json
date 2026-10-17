@@ -1,8 +1,9 @@
 {
   "required": true,
   "package": "com.piotrek.peterwolfsboatsandships.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "AbstractBoatPassengerMixin",
     "LivingEntityDismountMixin"
   ],
   "injectors": {

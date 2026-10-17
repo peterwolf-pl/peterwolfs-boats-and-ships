@@ -92,7 +92,7 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 			.noOcclusion()
 			.isRedstoneConductor((state, level, pos) -> false)
 			.isSuffocating((state, level, pos) -> false)
-			.isViewBlocking((state, level, pos) -> false)
+			.isViewBlocking((state, level, pos, box) -> false)
 			.setId(key))
 	);
 	public static final BlockItem LIGHTHOUSE_LIGHT_ITEM = registerBlockItem("lighthouse_light", LIGHTHOUSE_LIGHT);

@@ -22,8 +22,10 @@ import net.minecraft.world.Containers;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.InterpolationHandler;
+import net.minecraft.world.entity.LinearInterpolationHandler;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
@@ -55,6 +57,21 @@ public abstract class AbstractShipEntity extends Entity {
 	private static final EntityDataAccessor<Float> RUDDER = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
 	/** Entity id of the living captain who claimed the helm, or -1 when free. */
 	private static final EntityDataAccessor<Integer> HELMSMAN_ID = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.INT);
+	private static final EntityDataAccessor<Float> SCALE = SynchedEntityData.defineId(AbstractShipEntity.class, EntityDataSerializers.FLOAT);
+
+	private static float globalSailingShipScaleMultiplier = 1.0F;
+
+	public static float getGlobalSailingShipScaleMultiplier() {
+		return globalSailingShipScaleMultiplier;
+	}
+
+	public static void setGlobalSailingShipScaleMultiplier(float mult) {
+		globalSailingShipScaleMultiplier = Mth.clamp(mult, 0.25F, 8.0F);
+	}
+
+	protected float defaultScale() {
+		return 1.0F;
+	}
 
 	/** Double-tap W may send thrust above 1.0; keep room for that. */
 	public static final float MAX_THRUST = 1.75F;
@@ -80,15 +97,17 @@ public abstract class AbstractShipEntity extends Entity {
 	@Nullable
 	private UUID helmsmanUuid;
 	private final SimpleContainer cargo;
-	// Entity itself has no interpolation handler in 26.2. A server-authoritative
-	// vehicle must provide one or client position packets are not blended/applied
-	// like those of vanilla boats.
-	private final InterpolationHandler interpolation = new InterpolationHandler(this, 3);
 
 	protected AbstractShipEntity(EntityType<? extends AbstractShipEntity> type, Level level, int cargoSlots) {
 		super(type, level);
 		this.blocksBuilding = true;
 		this.cargo = new SimpleContainer(cargoSlots);
+		this.refreshDimensions();
+	}
+
+	@Override
+	protected InterpolationHandler createInterpolationHandler() {
+		return LinearInterpolationHandler.create(this, 3);
 	}
 
 	@Override
@@ -96,10 +115,12 @@ public abstract class AbstractShipEntity extends Entity {
 		builder.define(THRUST, 0.0F);
 		builder.define(RUDDER, 0.0F);
 		builder.define(HELMSMAN_ID, -1);
+		builder.define(SCALE, this.defaultScale());
 	}
 
 	@Override
 	protected void readAdditionalSaveData(ValueInput input) {
+		this.setShipScale(input.getFloatOr("ShipScale", this.defaultScale()));
 		this.setControl(input.getFloatOr("Thrust", 0.0F), input.getFloatOr("Rudder", 0.0F));
 		ContainerHelper.loadAllItems(input, this.cargo.getItems());
 		Optional<UUID> savedHelmsman = input.read("Helmsman", UUIDUtil.CODEC);
@@ -109,6 +130,7 @@ public abstract class AbstractShipEntity extends Entity {
 
 	@Override
 	protected void addAdditionalSaveData(ValueOutput output) {
+		output.putFloat("ShipScale", this.getShipScale());
 		output.putFloat("Thrust", this.getThrust());
 		output.putFloat("Rudder", this.getRudder());
 		ContainerHelper.saveAllItems(output, this.cargo.getItems());
@@ -257,7 +279,7 @@ public abstract class AbstractShipEntity extends Entity {
 	public void tick() {
 		super.tick();
 		if (this.level().isClientSide()) {
-			this.interpolation.interpolate();
+			this.getInterpolation().interpolate();
 			this.tickClientVisuals();
 			return;
 		}
@@ -304,7 +326,7 @@ public abstract class AbstractShipEntity extends Entity {
 		double oldY = this.getY();
 		double oldZ = this.getZ();
 
-		this.setPos(this.getX(), surface - 0.28D, this.getZ());
+		this.setPos(this.getX(), surface - 0.28D * this.getShipScale(), this.getZ());
 		Vec3 heading = this.heading();
 		double speed = this.getDeltaMovement().dot(heading);
 		float thrust = this.getThrust();
@@ -344,17 +366,17 @@ public abstract class AbstractShipEntity extends Entity {
 
 	private boolean isStandingOnDeck(Player player) {
 		if (player.isSpectator() || player.isPassenger() || !player.isAlive()) return false;
-		AABB hull = this.getBoundingBox().inflate(0.12D, 0.0D, 0.12D);
+		AABB hull = this.getBoundingBox().inflate(0.12D * this.getShipScale(), 0.0D, 0.12D * this.getShipScale());
 		if (!hull.intersects(player.getBoundingBox())) return false;
 		double feet = player.getY();
 		double deck = this.getBoundingBox().maxY;
 		// Feet on/just above the deck top — not swimming under the keel.
-		return feet >= deck - 0.35D && feet <= deck + 0.85D;
+		return feet >= deck - 0.35D * this.getShipScale() && feet <= deck + 0.85D;
 	}
 
 	private AABB deckSurfaceBox() {
 		AABB box = this.getBoundingBox();
-		return new AABB(box.minX, box.maxY - 0.2D, box.minZ, box.maxX, box.maxY + 0.15D, box.maxZ);
+		return new AABB(box.minX, box.maxY - 0.2D * this.getShipScale(), box.minZ, box.maxX, box.maxY + 0.25D, box.maxZ);
 	}
 
 	/** Move free deck walkers with the hull so the ship feels like a platform. */
@@ -368,12 +390,19 @@ public abstract class AbstractShipEntity extends Entity {
 	private double findWaterSurface() {
 		BlockPos center = this.blockPosition();
 		double highest = Double.NaN;
-		for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) for (int y = -2; y <= 3; y++) {
-			BlockPos pos = center.offset(x, y, z);
-			FluidState fluid = this.level().getFluidState(pos);
-			if (fluid.is(FluidTags.WATER)) {
-				double candidate = pos.getY() + fluid.getHeight(this.level(), pos);
-				if (Double.isNaN(highest) || candidate > highest) highest = candidate;
+		int hRadius = Math.max(1, Mth.ceil(this.getBbWidth() * 0.35F));
+		int yBelow = Math.max(2, Mth.ceil(1.5F * this.getShipScale()));
+		int yAbove = Math.max(3, Mth.ceil(2.0F * this.getShipScale()));
+		for (int x = -hRadius; x <= hRadius; x++) {
+			for (int z = -hRadius; z <= hRadius; z++) {
+				for (int y = -yBelow; y <= yAbove; y++) {
+					BlockPos pos = center.offset(x, y, z);
+					FluidState fluid = this.level().getFluidState(pos);
+					if (fluid.is(FluidTags.WATER)) {
+						double candidate = pos.getY() + fluid.getHeight(this.level(), pos);
+						if (Double.isNaN(highest) || candidate > highest) highest = candidate;
+					}
+				}
 			}
 		}
 		return highest;
@@ -439,9 +468,30 @@ public abstract class AbstractShipEntity extends Entity {
 		return false;
 	}
 
+	public final float getShipScale() {
+		return this.entityData != null ? this.entityData.get(SCALE) : this.defaultScale();
+	}
+
+	public final void setShipScale(float scale) {
+		float clamped = Mth.clamp(scale, 0.25F, 8.0F);
+		this.entityData.set(SCALE, clamped);
+		this.refreshDimensions();
+		for (Entity passenger : this.getPassengers()) {
+			this.positionRider(passenger);
+		}
+	}
+
 	@Override
-	public InterpolationHandler getInterpolation() {
-		return this.interpolation;
+	public EntityDimensions getDimensions(Pose pose) {
+		return super.getDimensions(pose).scale(this.getShipScale());
+	}
+
+	@Override
+	public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
+		super.onSyncedDataUpdated(key);
+		if (SCALE.equals(key)) {
+			this.refreshDimensions();
+		}
 	}
 
 	@Override
@@ -477,12 +527,17 @@ public abstract class AbstractShipEntity extends Entity {
 	}
 
 	@Override
-	protected void positionRider(Entity passenger, MoveFunction moveFunction) {
+	public Vec3 getPassengerRidingPosition(Entity passenger) {
 		Vec3 seat = this.seatOffset(this.seatIndex(passenger));
 		double radians = Math.toRadians(this.getYRot());
-		double x = this.getX() + Math.cos(radians) * seat.x - Math.sin(radians) * seat.z;
-		double z = this.getZ() + Math.sin(radians) * seat.x + Math.cos(radians) * seat.z;
-		moveFunction.accept(passenger, x, this.getY() + seat.y, z);
+		double x = Math.cos(radians) * seat.x - Math.sin(radians) * seat.z;
+		double z = Math.sin(radians) * seat.x + Math.cos(radians) * seat.z;
+		return this.position().add(x, seat.y, z);
+	}
+
+	@Override
+	protected Vec3 getPassengerAttachmentPoint(Entity passenger, EntityDimensions dimensions, float scale) {
+		return this.getPassengerRidingPosition(passenger).subtract(this.position());
 	}
 
 	private int seatIndex(Entity passenger) {
@@ -494,22 +549,41 @@ public abstract class AbstractShipEntity extends Entity {
 			if (this.isHelmsman(rider)) {
 				continue;
 			}
-			if (rider == passenger) {
+			if (rider.getId() == passenger.getId()) {
 				return Math.min(passengerSeat, this.seatCount() - 1);
 			}
 			passengerSeat++;
 		}
-		return Math.min(passengerSeat, this.seatCount() - 1);
+		int fallback = this.getPassengers().indexOf(passenger);
+		if (fallback <= 0) {
+			return Math.min(1, this.seatCount() - 1);
+		}
+		return Math.min(fallback, this.seatCount() - 1);
 	}
 
+	/** Local hull offset: +X starboard, +Z toward the bow, Y above the keel. */
 	protected Vec3 seatOffset(int index) {
-		if (index == 0) {
-			return new Vec3(0.0D, 0.38D, -0.45D); // Captain sits closer to the stern (rufa)
+		float scale = this.getShipScale();
+		if (index <= 0) {
+			return new Vec3(0.0D, this.helmSeatY() * scale, this.helmSeatZ() * scale);
 		}
-		int row = (index + 1) / 2;
-		double side = (index & 1) == 1 ? -0.42D : 0.42D;
-		return new Vec3(side, 0.38D, -0.45D + row * 0.75D);
+		int crewSeats = this.seatCount() - 1;
+		int crewIndex = index - 1;
+		boolean lastCenter = crewSeats % 2 == 1 && crewIndex == crewSeats - 1;
+		int pair = crewIndex / 2;
+		double halfWidth = this.getBbWidth() * 0.28D;
+		double side = lastCenter ? 0.0D : ((crewIndex & 1) == 0 ? -halfWidth : halfWidth);
+		double rowSpacing = Math.max(0.95D * scale, this.getBbWidth() * 0.24D);
+		double z = (this.helmSeatZ() + 1.2D) * scale + pair * rowSpacing;
+		if (lastCenter) {
+			z += rowSpacing * 0.35D;
+		}
+		return new Vec3(side, this.passengerSeatY() * scale, z);
 	}
+
+	protected double helmSeatY() { return 0.26D; }
+	protected double helmSeatZ() { return -0.45D; }
+	protected double passengerSeatY() { return 0.26D; }
 
 	@Override
 	public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
@@ -519,9 +593,17 @@ public abstract class AbstractShipEntity extends Entity {
 
 	/** Used by the common dismount guard before LivingEntity detaches from the ship. */
 	public final boolean canPassengerDismount(LivingEntity passenger) {
-		if (this.isRemoved() || passenger.isRemoved() || !passenger.isAlive()
-			|| passenger instanceof Player player && player.isSpectator()) {
+		if (this.isRemoved() || passenger.isRemoved() || !passenger.isAlive()) {
 			return true;
+		}
+		if (passenger instanceof Player player) {
+			if (player.isShiftKeyDown() || player.isSpectator()) {
+				return true;
+			}
+			if (player instanceof ServerPlayer serverPlayer && serverPlayer.getLastClientInput().shift()) {
+				return true;
+			}
+			return this.getHorizontalSpeed() <= DISEMBARK_MAX_SPEED && Math.abs(this.getThrust()) < 0.01F;
 		}
 		return this.getHorizontalSpeed() <= DISEMBARK_MAX_SPEED
 			&& Math.abs(this.getThrust()) < 0.01F
@@ -535,21 +617,23 @@ public abstract class AbstractShipEntity extends Entity {
 
 	private Optional<Vec3> findSafeDismountLocation(LivingEntity passenger) {
 		AABB hull = this.getBoundingBox();
+		float scale = this.getShipScale();
 		int minX = Mth.floor(hull.minX) - 1;
 		int maxX = Mth.floor(hull.maxX) + 1;
 		int minZ = Mth.floor(hull.minZ) - 1;
 		int maxZ = Mth.floor(hull.maxZ) + 1;
 		int deckY = Mth.floor(hull.maxY);
+		int keelY = Mth.floor(hull.minY);
 		List<BlockPos> candidates = new ArrayList<>();
 		for (int x = minX; x <= maxX; x++) {
 			for (int z = minZ; z <= maxZ; z++) {
 				double centerX = x + 0.5D;
 				double centerZ = z + 0.5D;
-				if (centerX >= hull.minX - 0.15D && centerX <= hull.maxX + 0.15D
-					&& centerZ >= hull.minZ - 0.15D && centerZ <= hull.maxZ + 0.15D) {
+				if (centerX >= hull.minX - 0.15D * scale && centerX <= hull.maxX + 0.15D * scale
+					&& centerZ >= hull.minZ - 0.15D * scale && centerZ <= hull.maxZ + 0.15D * scale) {
 					continue;
 				}
-				for (int y = deckY + 1; y >= deckY - 1; y--) {
+				for (int y = deckY + 1; y >= keelY - 1; y--) {
 					candidates.add(new BlockPos(x, y, z));
 				}
 			}

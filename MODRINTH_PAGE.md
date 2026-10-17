@@ -52,8 +52,8 @@
 
 ## 🛠️ Requirements
 
-- **Minecraft**: `26.2` (or Fabric compatible)
-- **Fabric Loader**: `>=0.19.3`
-- **Fabric API**: `>=0.153.0+26.2`
+- **Minecraft**: `26.3` (or Fabric compatible)
+- **Fabric Loader**: `>=0.19.5`
+- **Fabric API**: `>=0.161.0+26.3`
 - **Java**: `>=25`
 ```

@@ -1,0 +1,41 @@
+{
+  "enabled": false,
+  "taskCounter": 0,
+  "masterStatus": "idle",
+  "masterActivity": "Session closed",
+  "sessionConnection": {
+    "connected": false,
+    "pid": 50429,
+    "sessionName": "pi-interactive",
+    "lastHeartbeat": 0,
+    "cwd": "/Users/piotrek/Documents/java/peterwolfs-boats-and-ships"
+  },
+  "dashboardInfo": {
+    "running": false,
+    "pid": 27234,
+    "lastHeartbeat": 0
+  },
+  "functionUsage": [],
+  "lastUpdated": 1790302417067,
+  "tasks": [],
+  "workerStatuses": [
+    {
+      "id": "google-antigravity-4",
+      "status": "idle"
+    },
+    {
+      "id": "xai",
+      "status": "idle"
+    },
+    {
+      "id": "google-antigravity-3",
+      "status": "idle"
+    },
+    {
+      "id": "antigravity",
+      "status": "idle"
+    }
+  ],
+  "runningProcesses": [],
+  "revision": 324
+}

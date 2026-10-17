@@ -79,7 +79,7 @@ public final class WatermanClientGameTest implements FabricClientGameTest {
 			context.waitFor(client -> client.level != null
 				&& client.level.getEntity(watermanId[0]) instanceof WatermanEntity
 				&& client.level.getEntity(shipId[0]) instanceof RiverSkiffEntity, 300);
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
 			context.getInput().lookAt(45.0F, 24.0F);
 			context.waitTicks(10);

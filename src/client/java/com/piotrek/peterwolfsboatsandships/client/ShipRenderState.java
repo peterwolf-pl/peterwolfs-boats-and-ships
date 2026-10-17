@@ -8,4 +8,5 @@ public final class ShipRenderState extends EntityRenderState {
 	public float sailPhase;
 	public float oarPhase;
 	public float speed;
+	public float scale = 1.0F;
 }
