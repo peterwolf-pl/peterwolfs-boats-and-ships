@@ -6,12 +6,18 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.CameraType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import java.util.List;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -38,6 +44,9 @@ public final class PassengerSafetyClientGameTest implements FabricClientGameTest
 			singleplayer.getServer().runCommand("weather clear");
 
 			singleplayer.getServer().runOnServer(server -> {
+				assertRecipeLoaded(server, "river_skiff");
+				assertRecipeLoaded(server, "explorer_sloop");
+				assertRecipeLoaded(server, "merchant_schooner");
 				ServerPlayer player = server.getPlayerList().getPlayers().get(0);
 				ServerLevel level = (ServerLevel)player.level();
 				waterY[0] = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, 0, 0);
@@ -72,6 +81,8 @@ public final class PassengerSafetyClientGameTest implements FabricClientGameTest
 				if (ship.getControllingPassenger() != captain) {
 					throw new AssertionError("a later passenger stole control from the first rider");
 				}
+				placeRidersOnSeats(ship);
+				assertRidersNotStacked(ship);
 
 				// Put the fully occupied vessel in open water with real horizontal speed.
 				ship.setPos(SHIP_X, waterY[0] + 0.72D, 12.5D);
@@ -155,6 +166,67 @@ public final class PassengerSafetyClientGameTest implements FabricClientGameTest
 				}
 			});
 			context.takeScreenshot("first-player-captain-with-villager-passengers");
+
+			singleplayer.getServer().runOnServer(server -> {
+				ServerPlayer player = server.getPlayerList().getPlayers().get(0);
+				ServerLevel level = (ServerLevel)player.level();
+				MerchantSchoonerEntity schooner = new MerchantSchoonerEntity(PeterwolfsBoatsAndShipsMod.MERCHANT_SCHOONER, level);
+				schooner.setPos(SHIP_X, waterY[0] + 0.72D, DOCK_Z);
+				schooner.setYRot(0.0F);
+				level.addFreshEntity(schooner);
+
+				Villager helm = createVillager(level, SHIP_X, waterY[0] + 1.0D, DOCK_Z);
+				if (!schooner.tryClaimHelm(helm)) {
+					throw new AssertionError("schooner helmsman did not board");
+				}
+				for (int n = 0; n < 5; n++) {
+					Villager crew = createVillager(level, SHIP_X + 1.0D + n * 0.2D, waterY[0] + 1.0D, DOCK_Z);
+					if (!schooner.tryBoardPassenger(crew)) {
+						throw new AssertionError("schooner rejected crew seat " + (n + 1));
+					}
+				}
+				if (schooner.getPassengers().size() != 6) {
+					throw new AssertionError("merchant schooner did not keep six riders");
+				}
+				placeRidersOnSeats(schooner);
+				assertRidersNotStacked(schooner);
+				player.teleportTo(SHIP_X + 6.0D, waterY[0] + 2.5D, DOCK_Z + 6.0D);
+			});
+			context.waitTicks(8);
+			context.takeScreenshot("schooner-six-riders-spread-seats");
+		}
+	}
+
+	private static void assertRecipeLoaded(MinecraftServer server, String path) {
+		ResourceKey<Recipe<?>> id = ResourceKey.create(Registries.RECIPE, PeterwolfsBoatsAndShipsMod.id(path));
+		if (server.getRecipeManager().byKey(id).isEmpty()) {
+			throw new AssertionError(path + " recipe did not load");
+		}
+	}
+
+	private static void placeRidersOnSeats(AbstractShipEntity ship) {
+		for (Entity rider : List.copyOf(ship.getPassengers())) {
+			ship.positionRider(rider);
+		}
+	}
+
+	private static void assertRidersNotStacked(AbstractShipEntity ship) {
+		List<Entity> riders = ship.getPassengers();
+		if (riders.size() < 2) {
+			throw new AssertionError(ship.getType().toShortString() + " needed at least two riders to check seating");
+		}
+		for (int i = 0; i < riders.size(); i++) {
+			for (int j = i + 1; j < riders.size(); j++) {
+				Entity a = riders.get(i);
+				Entity b = riders.get(j);
+				double dx = a.getX() - b.getX();
+				double dz = a.getZ() - b.getZ();
+				if (dx * dx + dz * dz < 0.7D * 0.7D) {
+					throw new AssertionError("riders stacked on " + ship.getType().toShortString()
+						+ ": id " + a.getId() + " at " + a.position()
+						+ " and id " + b.getId() + " at " + b.position());
+				}
+			}
 		}
 	}
 

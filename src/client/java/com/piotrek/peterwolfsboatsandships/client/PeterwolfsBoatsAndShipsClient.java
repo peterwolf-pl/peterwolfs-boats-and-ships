@@ -7,7 +7,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.ModelLayerRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
@@ -64,9 +64,9 @@ public final class PeterwolfsBoatsAndShipsClient implements ClientModInitializer
 		EntityRendererRegistry.register(PeterwolfsBoatsAndShipsMod.EXPLORER_SLOOP, context -> new ShipRenderer<>(context, EXPLORER_SLOOP_LAYER, PeterwolfsBoatsAndShipsMod.id("textures/entity/explorer_sloop.png"), 1.25F));
 		EntityRendererRegistry.register(PeterwolfsBoatsAndShipsMod.MERCHANT_SCHOONER, context -> new ShipRenderer<>(context, MERCHANT_SCHOONER_LAYER, PeterwolfsBoatsAndShipsMod.id("textures/entity/merchant_schooner.png"), 1.75F));
 		EntityRendererRegistry.register(PeterwolfsBoatsAndShipsMod.WATERMAN, VillagerRenderer::new);
-		ModelLayerRegistry.registerModelLayer(RIVER_SKIFF_LAYER, ShipModel::createRiverSkiffLayer);
-		ModelLayerRegistry.registerModelLayer(EXPLORER_SLOOP_LAYER, ShipModel::createExplorerSloopLayer);
-		ModelLayerRegistry.registerModelLayer(MERCHANT_SCHOONER_LAYER, ShipModel::createMerchantSchoonerLayer);
+		EntityModelLayerRegistry.registerModelLayer(RIVER_SKIFF_LAYER, ShipModel::createRiverSkiffLayer);
+		EntityModelLayerRegistry.registerModelLayer(EXPLORER_SLOOP_LAYER, ShipModel::createExplorerSloopLayer);
+		EntityModelLayerRegistry.registerModelLayer(MERCHANT_SCHOONER_LAYER, ShipModel::createMerchantSchoonerLayer);
 		BlockEntityRenderers.register(PeterwolfsBoatsAndShipsMod.LIGHTHOUSE_LIGHT_BLOCK_ENTITY, LighthouseLightRenderer::new);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			// Only the helmsman (right-click claim) may send steering input.

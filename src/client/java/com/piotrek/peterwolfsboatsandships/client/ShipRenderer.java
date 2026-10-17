@@ -6,8 +6,9 @@ import com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.state.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.resources.Identifier;
 
@@ -37,7 +38,7 @@ public final class ShipRenderer<T extends AbstractShipEntity> extends EntityRend
 		stack.scale(-1.0F, -1.0F, 1.0F);
 		stack.translate(0.0F, -1.5F, 0.0F);
 		this.model.setupAnim(state);
-		collector.submitModel(this.model, state, stack, this.texture, state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
+		collector.submitModel(this.model, state, stack, RenderTypes.entityCutoutNoCull(this.texture), state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
 		stack.popPose();
 	}
 }

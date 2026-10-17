@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.19
+
+### Crafting compatibility
+- Fixed Explorer Sloop and Merchant Schooner recipes not loading on 26.2: vanilla renamed `minecraft:chain` to `minecraft:iron_chain`. Any chain (`#c:chains`, including copper) now works.
+- Those recipes also accept **any wooden barrel** (`#c:barrels/wooden`), including **More Barrel Variants**. That pack treats vanilla `minecraft:barrel` as the spruce barrel, so oak/birch barrels previously did not match.
+- River Skiff now accepts **any wooden stick** (`#c:rods/wooden`) so **More Stick Variants** and similar wood-variant packs can craft it.
+
+### Merchant Schooner seating
+- Six riders no longer sit on the same point. The helm stays on the quarterdeck; crew take port/starboard pairs and a forward center seat spread across the hull.
+
+## 1.0.18
+
+### Watermen
+- Operators can send nearby watermen home with `/pwboats send-home [radius]` (default 64, max 512). Those with a port sail or walk back; the rest start searching for a settlement, bed or shore.
+- Send-home now breaks atoll circling: the hull first leaves the lagoon on a radial heading, ignores traffic dances, and only then sails to the remembered waterside berth. The atoll itself is never adopted as home.
+- Recalled hulls no longer freeze: missing home water no longer cancels the helm, and a jammed ship picks an open heading or a short reverse instead of sitting still.
+- After reaching the home pier, watermen stop the hull and disembark instead of keeping the helm.
+
 ## 1.0.17
 
 ### Watermen

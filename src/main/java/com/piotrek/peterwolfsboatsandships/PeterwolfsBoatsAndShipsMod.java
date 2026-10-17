@@ -10,13 +10,13 @@ import com.piotrek.peterwolfsboatsandships.entity.WatermanEntity;
 import com.piotrek.peterwolfsboatsandships.item.ShipItem;
 import com.piotrek.peterwolfsboatsandships.network.ShipInputPayload;
 import com.piotrek.peterwolfsboatsandships.worldgen.ModStructures;
-import java.util.Set;
 import java.util.function.Function;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
-import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
+import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
+import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -99,10 +99,10 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 	public static final BlockEntityType<LighthouseLightBlockEntity> LIGHTHOUSE_LIGHT_BLOCK_ENTITY = Registry.register(
 		BuiltInRegistries.BLOCK_ENTITY_TYPE,
 		id("lighthouse_light"),
-		new BlockEntityType<>(LighthouseLightBlockEntity::new, Set.of(LIGHTHOUSE_LIGHT))
+		FabricBlockEntityTypeBuilder.create(LighthouseLightBlockEntity::new, LIGHTHOUSE_LIGHT).build()
 	);
 
-	public static final CreativeModeTab SHIPS_TAB = FabricCreativeModeTab.builder()
+	public static final CreativeModeTab SHIPS_TAB = FabricItemGroup.builder()
 		.title(Component.translatable("itemGroup.peterwolfs_boats_and_ships.group"))
 		.icon(RIVER_SKIFF_ITEM::getDefaultInstance)
 		.displayItems((parameters, output) -> {
@@ -119,21 +119,19 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 		Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, id("group"), SHIPS_TAB);
 		// A discoverable custom tab is useful, but these must also appear in a
 		// vanilla tab so players can obtain them from the normal Creative search.
-		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(output -> {
-			output.insertAfter(Items.OAK_BOAT, RIVER_SKIFF_ITEM);
-			output.insertAfter(RIVER_SKIFF_ITEM, EXPLORER_SLOOP_ITEM);
-			output.insertAfter(EXPLORER_SLOOP_ITEM, MERCHANT_SCHOONER_ITEM);
+		ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
+			entries.addAfter(Items.OAK_BOAT, RIVER_SKIFF_ITEM, EXPLORER_SLOOP_ITEM, MERCHANT_SCHOONER_ITEM);
 		});
-		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(output -> {
-			output.accept(LIGHTHOUSE_LIGHT_ITEM);
+		ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> {
+			entries.accept(LIGHTHOUSE_LIGHT_ITEM);
 		});
-		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(output -> {
-			output.insertAfter(Items.VILLAGER_SPAWN_EGG, WATERMAN_SPAWN_EGG);
+		ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.SPAWN_EGGS).register(entries -> {
+			entries.addAfter(Items.VILLAGER_SPAWN_EGG, WATERMAN_SPAWN_EGG);
 		});
 		FabricDefaultAttributeRegistry.register(WATERMAN, WatermanEntity.createAttributes());
 		ModStructures.register();
 		WatermanSettlementCommands.register();
-		PayloadTypeRegistry.serverboundPlay().register(ShipInputPayload.TYPE, ShipInputPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(ShipInputPayload.TYPE, ShipInputPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(ShipInputPayload.TYPE, (payload, context) -> context.server().execute(() -> {
 			ServerPlayer player = context.player();
 			if (player.getVehicle() instanceof com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity ship && ship.isHelmsman(player)) {

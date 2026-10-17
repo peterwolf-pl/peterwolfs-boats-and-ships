@@ -22,6 +22,7 @@ import net.minecraft.world.Containers;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.InterpolationHandler;
 import net.minecraft.world.entity.LivingEntity;
@@ -477,12 +478,17 @@ public abstract class AbstractShipEntity extends Entity {
 	}
 
 	@Override
-	protected void positionRider(Entity passenger, MoveFunction moveFunction) {
+	public Vec3 getPassengerRidingPosition(Entity passenger) {
 		Vec3 seat = this.seatOffset(this.seatIndex(passenger));
 		double radians = Math.toRadians(this.getYRot());
-		double x = this.getX() + Math.cos(radians) * seat.x - Math.sin(radians) * seat.z;
-		double z = this.getZ() + Math.sin(radians) * seat.x + Math.cos(radians) * seat.z;
-		moveFunction.accept(passenger, x, this.getY() + seat.y, z);
+		double x = Math.cos(radians) * seat.x - Math.sin(radians) * seat.z;
+		double z = Math.sin(radians) * seat.x + Math.cos(radians) * seat.z;
+		return this.position().add(x, seat.y, z);
+	}
+
+	@Override
+	protected Vec3 getPassengerAttachmentPoint(Entity passenger, EntityDimensions dimensions, float scale) {
+		return this.getPassengerRidingPosition(passenger).subtract(this.position());
 	}
 
 	private int seatIndex(Entity passenger) {
@@ -494,22 +500,40 @@ public abstract class AbstractShipEntity extends Entity {
 			if (this.isHelmsman(rider)) {
 				continue;
 			}
-			if (rider == passenger) {
+			if (rider.getId() == passenger.getId()) {
 				return Math.min(passengerSeat, this.seatCount() - 1);
 			}
 			passengerSeat++;
 		}
-		return Math.min(passengerSeat, this.seatCount() - 1);
+		int fallback = this.getPassengers().indexOf(passenger);
+		if (fallback <= 0) {
+			return Math.min(1, this.seatCount() - 1);
+		}
+		return Math.min(fallback, this.seatCount() - 1);
 	}
 
+	/** Local hull offset: +X starboard, +Z toward the bow, Y above the keel. */
 	protected Vec3 seatOffset(int index) {
-		if (index == 0) {
-			return new Vec3(0.0D, 0.38D, -0.45D); // Captain sits closer to the stern (rufa)
+		if (index <= 0) {
+			return new Vec3(0.0D, this.helmSeatY(), this.helmSeatZ());
 		}
-		int row = (index + 1) / 2;
-		double side = (index & 1) == 1 ? -0.42D : 0.42D;
-		return new Vec3(side, 0.38D, -0.45D + row * 0.75D);
+		int crewSeats = this.seatCount() - 1;
+		int crewIndex = index - 1;
+		boolean lastCenter = crewSeats % 2 == 1 && crewIndex == crewSeats - 1;
+		int pair = crewIndex / 2;
+		double halfWidth = this.getBbWidth() * 0.28D;
+		double side = lastCenter ? 0.0D : ((crewIndex & 1) == 0 ? -halfWidth : halfWidth);
+		double rowSpacing = Math.max(0.95D, this.getBbWidth() * 0.24D);
+		double z = this.helmSeatZ() + 1.2D + pair * rowSpacing;
+		if (lastCenter) {
+			z += rowSpacing * 0.35D;
+		}
+		return new Vec3(side, this.passengerSeatY(), z);
 	}
+
+	protected double helmSeatY() { return 0.38D; }
+	protected double helmSeatZ() { return -0.45D; }
+	protected double passengerSeatY() { return 0.38D; }
 
 	@Override
 	public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
@@ -596,7 +620,7 @@ public abstract class AbstractShipEntity extends Entity {
 	 * Walking the deck does not mount control — that requires an explicit right-click.
 	 */
 	@Override
-	public InteractionResult interact(Player player, InteractionHand hand, Vec3 location) {
+	public InteractionResult interact(Player player, InteractionHand hand) {
 		if (player.isSecondaryUseActive() && this.cargo.getContainerSize() > 0) {
 			if (!this.level().isClientSide()) {
 				player.openMenu(new SimpleMenuProvider((id, inventory, ignored) -> this.cargo.getContainerSize() == 9
@@ -609,6 +633,11 @@ public abstract class AbstractShipEntity extends Entity {
 			return this.toggleHelm(player) ? InteractionResult.CONSUME : InteractionResult.PASS;
 		}
 		return InteractionResult.SUCCESS;
+	}
+
+	@Override
+	public InteractionResult interactAt(Player player, Vec3 location, InteractionHand hand) {
+		return this.interact(player, hand);
 	}
 
 	/**

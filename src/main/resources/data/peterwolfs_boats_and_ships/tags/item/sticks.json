@@ -1,0 +1,22 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:stick",
+    {
+      "id": "#c:rods/wooden",
+      "required": false
+    },
+    {
+      "id": "#c:wooden_rods",
+      "required": false
+    },
+    {
+      "id": "#more_stick_variants:sticks",
+      "required": false
+    },
+    {
+      "id": "#lolmstv:sticks",
+      "required": false
+    }
+  ]
+}

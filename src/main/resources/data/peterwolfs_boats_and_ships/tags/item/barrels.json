@@ -1,0 +1,22 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:barrel",
+    {
+      "id": "#c:barrels/wooden",
+      "required": false
+    },
+    {
+      "id": "#c:wooden_barrels",
+      "required": false
+    },
+    {
+      "id": "#more_barrel_variants:barrels",
+      "required": false
+    },
+    {
+      "id": "#lolmblv:barrels",
+      "required": false
+    }
+  ]
+}

@@ -19,11 +19,12 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.FarmlandBlock;
+import net.minecraft.world.level.block.FarmBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
@@ -247,7 +248,7 @@ public final class WatermanSettlementPiece extends StructurePiece {
 					this.set(level, chunkBB, x, 0, z, Blocks.WATER.defaultBlockState());
 					continue;
 				}
-				this.set(level, chunkBB, x, 0, z, Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7));
+				this.set(level, chunkBB, x, 0, z, Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
 				this.set(level, chunkBB, x, 1, z, cropFor(x + z, random));
 			}
 		}
@@ -746,14 +747,35 @@ public final class WatermanSettlementPiece extends StructurePiece {
 	}
 
 	private void placeBed(WorldGenLevel level, BoundingBox chunkBB, int x, int y, int z, Direction facing, DyeColor color) {
-		BlockState foot = Blocks.BED.pick(color).defaultBlockState()
+		BlockState foot = bedBlock(color).defaultBlockState()
 			.setValue(BedBlock.FACING, facing)
 			.setValue(BedBlock.PART, BedPart.FOOT);
-		BlockState head = Blocks.BED.pick(color).defaultBlockState()
+		BlockState head = bedBlock(color).defaultBlockState()
 			.setValue(BedBlock.FACING, facing)
 			.setValue(BedBlock.PART, BedPart.HEAD);
 		this.set(level, chunkBB, x, y, z, foot);
 		this.set(level, chunkBB, x + facing.getStepX(), y, z + facing.getStepZ(), head);
+	}
+
+	private static Block bedBlock(DyeColor color) {
+		return switch (color) {
+			case WHITE -> Blocks.WHITE_BED;
+			case ORANGE -> Blocks.ORANGE_BED;
+			case MAGENTA -> Blocks.MAGENTA_BED;
+			case LIGHT_BLUE -> Blocks.LIGHT_BLUE_BED;
+			case YELLOW -> Blocks.YELLOW_BED;
+			case LIME -> Blocks.LIME_BED;
+			case PINK -> Blocks.PINK_BED;
+			case GRAY -> Blocks.GRAY_BED;
+			case LIGHT_GRAY -> Blocks.LIGHT_GRAY_BED;
+			case CYAN -> Blocks.CYAN_BED;
+			case PURPLE -> Blocks.PURPLE_BED;
+			case BLUE -> Blocks.BLUE_BED;
+			case BROWN -> Blocks.BROWN_BED;
+			case GREEN -> Blocks.GREEN_BED;
+			case RED -> Blocks.RED_BED;
+			case BLACK -> Blocks.BLACK_BED;
+		};
 	}
 
 	private void placeStockedChest(WorldGenLevel level, BoundingBox chunkBB, int x, int y, int z, Direction facing, RandomSource random) {

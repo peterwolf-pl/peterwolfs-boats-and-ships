@@ -1,5 +1,5 @@
 plugins {
-	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 	id 'maven-publish'
 }
 
@@ -8,6 +8,7 @@ group = project.maven_group
 
 loom {
 	splitEnvironmentSourceSets()
+
 	mods {
 		"peterwolfs_boats_and_ships" {
 			sourceSet sourceSets.main
@@ -16,44 +17,35 @@ loom {
 	}
 }
 
-fabricApi {
-	configureTests {
-		createSourceSet = true
-		modId = "peterwolfs_boats_and_ships_gametest"
-		enableGameTests = false
-		enableClientGameTests = true
-		eula = true
-		clearRunDirectory = true
-		username = "PWBoatsTest"
-	}
-}
-
-sourceSets.gametest {
-	compileClasspath += sourceSets.client.output
-	runtimeClasspath += sourceSets.client.output
-}
-
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	if (providers.gradleProperty('atoll_compat_jar').isPresent()) {
 		localRuntime files(providers.gradleProperty('atoll_compat_jar').get())
 	}
 }
 
 processResources {
-	inputs.property 'version', project.version
-	filesMatching('fabric.mod.json') { expand 'version': project.version }
+	def version = project.version
+	inputs.property "version", version
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
 }
 
-tasks.withType(JavaCompile).configureEach { it.options.release = 25 }
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+}
 
 java {
 	withSourcesJar()
-	toolchain { languageVersion = JavaLanguageVersion.of(25) }
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
 }
 
 jar {
