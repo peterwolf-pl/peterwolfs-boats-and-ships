@@ -13,10 +13,9 @@ public final class ExplorerSloopEntity extends AbstractShipEntity {
 	@Override protected double acceleration() { return 0.021D; }
 	@Override protected float turnRate() { return 2.75F; }
 	@Override protected boolean hasSails() { return true; }
-	@Override protected Item dropItem() { return PeterwolfsBoatsAndShipsMod.EXPLORER_SLOOP_ITEM; }
+	@Override protected Item dropItem() { return PeterwolfsBoatsAndShipsMod.EXPLORER_SLOOP_ITEM.get(); }
 	@Override protected Component cargoTitle() { return Component.translatable("container.peterwolfs_boats_and_ships.explorer_sloop"); }
-	@Override protected net.minecraft.world.phys.Vec3 seatOffset(int index) {
-		if (index == 0) return new net.minecraft.world.phys.Vec3(0.0D, 0.62D, -1.15D);
-		return super.seatOffset(index);
-	}
+	@Override protected double helmSeatY() { return 0.62D; }
+	@Override protected double helmSeatZ() { return -1.15D; }
+	@Override protected double passengerSeatY() { return 0.50D; }
 }

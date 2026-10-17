@@ -16,5 +16,10 @@
   "container.peterwolfs_boats_and_ships.explorer_sloop": "Schowek slupa odkrywcy",
   "container.peterwolfs_boats_and_ships.merchant_schooner": "Ładownia szkunera kupieckiego",
   "command.peterwolfs_boats_and_ships.spawn_settlement_success": "Postawiono osadę wodniaków na %s, %s, %s",
-  "command.peterwolfs_boats_and_ships.spawn_settlement_no_water": "Najpierw stań na brzegu dużego zbiornika wodnego"
+  "command.peterwolfs_boats_and_ships.spawn_settlement_no_water": "Najpierw stań na brzegu dużego zbiornika wodnego",
+  "command.peterwolfs_boats_and_ships.send_home_success": "Wysłano %s wodniaków do domu i %s na poszukiwanie domu (w promieniu %s)",
+  "command.peterwolfs_boats_and_ships.send_home_none": "Brak wodniaków w promieniu %s",
+  "tag.item.peterwolfs_boats_and_ships.barrels": "Drewniane beczki",
+  "tag.item.peterwolfs_boats_and_ships.sticks": "Patyki",
+  "tag.item.peterwolfs_boats_and_ships.chains": "Łańcuchy"
 }

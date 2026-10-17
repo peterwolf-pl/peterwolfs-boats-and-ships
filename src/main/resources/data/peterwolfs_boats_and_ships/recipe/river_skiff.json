@@ -10,7 +10,7 @@
   "key": {
     "I": "minecraft:iron_nugget",
     "P": "minecraft:oak_planks",
-    "S": "minecraft:stick"
+    "S": "#peterwolfs_boats_and_ships:sticks"
   },
   "result": {
     "id": "peterwolfs_boats_and_ships:river_skiff",

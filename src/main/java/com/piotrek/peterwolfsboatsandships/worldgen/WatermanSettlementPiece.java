@@ -72,7 +72,7 @@ public final class WatermanSettlementPiece extends StructurePiece {
 
 	public WatermanSettlementPiece(RandomSource random, WatermanSettlementStructure.ShoreSite shore, boolean large) {
 		super(
-			ModStructures.WATERMAN_SETTLEMENT_PIECE,
+			ModStructures.WATERMAN_SETTLEMENT_PIECE.get(),
 			0,
 			boundingBoxFor(large, shore.waterDir(), originX(shore, large), originZ(shore, large), shore.waterY())
 		);
@@ -91,7 +91,7 @@ public final class WatermanSettlementPiece extends StructurePiece {
 	}
 
 	public WatermanSettlementPiece(StructurePieceSerializationContext context, CompoundTag tag) {
-		super(ModStructures.WATERMAN_SETTLEMENT_PIECE, tag);
+		super(ModStructures.WATERMAN_SETTLEMENT_PIECE.get(), tag);
 		this.large = tag.getBooleanOr("Large", false);
 		this.waterDir = Direction.from2DDataValue(tag.getIntOr("WaterDir", Direction.SOUTH.get2DDataValue()));
 		this.originX = tag.getIntOr("OriginX", 0);
@@ -644,7 +644,7 @@ public final class WatermanSettlementPiece extends StructurePiece {
 		}
 		this.set(level, chunkBB, ox + 1, h + 1, oz + 1, Blocks.AIR.defaultBlockState());
 		this.set(level, chunkBB, ox + 2, h + 1, oz + 1, Blocks.AIR.defaultBlockState());
-		this.set(level, chunkBB, ox + 1, h + 2, oz + 1, PeterwolfsBoatsAndShipsMod.LIGHTHOUSE_LIGHT.defaultBlockState());
+		this.set(level, chunkBB, ox + 1, h + 2, oz + 1, PeterwolfsBoatsAndShipsMod.LIGHTHOUSE_LIGHT.get().defaultBlockState());
 		for (int[] c : new int[][]{{ox, oz}, {ox + 3, oz}, {ox, oz + 3}, {ox + 3, oz + 3}}) {
 			this.set(level, chunkBB, c[0], h + 2, c[1], Blocks.COBBLESTONE_WALL.defaultBlockState());
 		}
@@ -677,7 +677,7 @@ public final class WatermanSettlementPiece extends StructurePiece {
 		if (!chunkBB.isInside(pos)) {
 			return;
 		}
-		WatermanEntity waterman = PeterwolfsBoatsAndShipsMod.WATERMAN.create(level.getLevel(), EntitySpawnReason.STRUCTURE);
+		WatermanEntity waterman = PeterwolfsBoatsAndShipsMod.WATERMAN.get().create(level.getLevel(), EntitySpawnReason.STRUCTURE);
 		if (waterman == null) {
 			return;
 		}
@@ -695,12 +695,12 @@ public final class WatermanSettlementPiece extends StructurePiece {
 		int pierEnd = this.layoutDepth - 5;
 		int mid = this.layoutWidth / 2;
 		trySpawnBoat(level, chunkBB, 0, mid - 5, pierEnd, () ->
-			new RiverSkiffEntity(PeterwolfsBoatsAndShipsMod.RIVER_SKIFF, level.getLevel()));
+			new RiverSkiffEntity(PeterwolfsBoatsAndShipsMod.RIVER_SKIFF.get(), level.getLevel()));
 		trySpawnBoat(level, chunkBB, 1, mid + 5, pierEnd - 1, () ->
-			new ExplorerSloopEntity(PeterwolfsBoatsAndShipsMod.EXPLORER_SLOOP, level.getLevel()));
+			new ExplorerSloopEntity(PeterwolfsBoatsAndShipsMod.EXPLORER_SLOOP.get(), level.getLevel()));
 		if (this.large) {
 			trySpawnBoat(level, chunkBB, 2, mid + 8, pierEnd + 1, () ->
-				new MerchantSchoonerEntity(PeterwolfsBoatsAndShipsMod.MERCHANT_SCHOONER, level.getLevel()));
+				new MerchantSchoonerEntity(PeterwolfsBoatsAndShipsMod.MERCHANT_SCHOONER.get(), level.getLevel()));
 		}
 	}
 

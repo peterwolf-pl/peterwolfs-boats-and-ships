@@ -3,7 +3,6 @@ package com.piotrek.peterwolfsboatsandships.entity;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -11,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.fml.ModList;
 import org.jspecify.annotations.Nullable;
 
 /** Optional bridge to Water World - The Atoll without linking to its Java classes. */
@@ -33,7 +33,7 @@ final class AtollTradeCompat {
 	}
 
 	static boolean isAvailable() {
-		return FabricLoader.getInstance().isModLoaded(ATOLL_MOD_ID);
+		return ModList.get().isLoaded(ATOLL_MOD_ID);
 	}
 
 	/**

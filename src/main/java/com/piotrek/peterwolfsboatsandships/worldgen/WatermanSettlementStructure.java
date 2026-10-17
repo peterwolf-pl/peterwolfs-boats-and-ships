@@ -43,7 +43,7 @@ public final class WatermanSettlementStructure extends Structure {
 
 	@Override
 	public StructureType<?> type() {
-		return ModStructures.WATERMAN_SETTLEMENT_TYPE;
+		return ModStructures.WATERMAN_SETTLEMENT_TYPE.get();
 	}
 
 	static Optional<ShoreSite> findShore(GenerationContext context) {

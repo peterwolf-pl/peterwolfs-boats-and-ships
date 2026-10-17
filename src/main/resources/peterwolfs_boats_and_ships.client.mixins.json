@@ -1,0 +1,11 @@
+{
+	"required": true,
+	"package": "com.piotrek.peterwolfsboatsandships.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"AbstractClientPlayerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

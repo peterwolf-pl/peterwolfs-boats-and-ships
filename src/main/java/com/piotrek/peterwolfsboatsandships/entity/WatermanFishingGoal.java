@@ -42,6 +42,7 @@ final class WatermanFishingGoal extends Goal {
 			|| this.waterman.isTrading()
 			|| this.waterman.isDisplayingAtollWealth()
 			|| this.waterman.hasPendingHomeDeposit()
+			|| this.waterman.isReturnHomeRequested()
 			|| this.waterman.getFishingCooldown() > 0) {
 			return false;
 		}
@@ -60,6 +61,7 @@ final class WatermanFishingGoal extends Goal {
 			&& this.waterman.isAlive()
 			&& !this.waterman.isPassenger()
 			&& !this.waterman.isTrading()
+			&& !this.waterman.isReturnHomeRequested()
 			&& this.shore != null
 			&& this.fishingTicks < CAST_TICKS + SHOW_CATCH_TICKS + 60;
 	}

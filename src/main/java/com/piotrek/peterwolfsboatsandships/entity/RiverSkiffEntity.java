@@ -13,6 +13,6 @@ public final class RiverSkiffEntity extends AbstractShipEntity {
 	@Override protected double acceleration() { return 0.034D; }
 	@Override protected float turnRate() { return 4.7F; }
 	@Override protected boolean hasSails() { return false; }
-	@Override protected Item dropItem() { return PeterwolfsBoatsAndShipsMod.RIVER_SKIFF_ITEM; }
+	@Override protected Item dropItem() { return PeterwolfsBoatsAndShipsMod.RIVER_SKIFF_ITEM.get(); }
 	@Override protected Component cargoTitle() { return Component.empty(); }
 }

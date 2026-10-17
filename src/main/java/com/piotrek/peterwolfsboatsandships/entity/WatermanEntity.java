@@ -1,13 +1,18 @@
 package com.piotrek.peterwolfsboatsandships.entity;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.tags.TagKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Container;
@@ -33,8 +38,10 @@ import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -46,9 +53,18 @@ import org.jspecify.annotations.Nullable;
  */
 public final class WatermanEntity extends Villager {
 	private static final int PORT_HOME_RADIUS = 28;
+	private static final int SETTLEMENT_SEARCH_RADIUS_CHUNKS = 48;
+	private static final long SETTLEMENT_CACHE_TICKS = 6000L;
+	private static final TagKey<Structure> HOME_SETTLEMENTS = TagKey.create(
+		Registries.STRUCTURE,
+		Identifier.fromNamespaceAndPath("peterwolfs_boats_and_ships", "waterman_homes")
+	);
+	private static final Map<ServerLevel, Map<Long, CachedSettlement>> SETTLEMENT_CACHE = new WeakHashMap<>();
 
 	@Nullable
 	private BlockPos portPos;
+	@Nullable
+	private BlockPos portWaterPos;
 	private int boatTripCooldown = 80;
 	private int fishingCooldown = 20;
 	private int atollTradeCooldown = 200;
@@ -59,12 +75,15 @@ public final class WatermanEntity extends Villager {
 	private int lastHomeDepositCount;
 	private int wealthDisplayTicks;
 	private boolean pendingHomeDeposit;
+	private boolean returnHomeRequested;
 	@Nullable
 	private WatermanBoatTripGoal boatTripGoal;
 	@Nullable
 	private WatermanStoreWealthGoal storeWealthGoal;
 	@Nullable
 	private WatermanFishingGoal fishingGoal;
+	@Nullable
+	private WatermanSeekHomeGoal seekHomeGoal;
 	@Nullable
 	private BlockPos nextExcursionTargetForTesting;
 	@Nullable
@@ -84,12 +103,14 @@ public final class WatermanEntity extends Villager {
 	protected void registerGoals() {
 		this.goalSelector.addGoal(0, new FloatGoal(this));
 		this.goalSelector.addGoal(1, new OpenDoorGoal(this, true));
+		this.seekHomeGoal = new WatermanSeekHomeGoal(this);
 		this.storeWealthGoal = new WatermanStoreWealthGoal(this);
 		this.boatTripGoal = new WatermanBoatTripGoal(this);
 		this.fishingGoal = new WatermanFishingGoal(this);
-		this.goalSelector.addGoal(2, this.storeWealthGoal);
-		this.goalSelector.addGoal(3, this.boatTripGoal);
-		this.goalSelector.addGoal(4, this.fishingGoal);
+		this.goalSelector.addGoal(2, this.seekHomeGoal);
+		this.goalSelector.addGoal(3, this.storeWealthGoal);
+		this.goalSelector.addGoal(4, this.boatTripGoal);
+		this.goalSelector.addGoal(5, this.fishingGoal);
 		this.goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 8.0F));
 		this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
 	}
@@ -170,6 +191,9 @@ public final class WatermanEntity extends Villager {
 		if (this.portPos != null) {
 			output.store("WatermanPort", BlockPos.CODEC, this.portPos);
 		}
+		if (this.portWaterPos != null) {
+			output.store("WatermanPortWater", BlockPos.CODEC, this.portWaterPos);
+		}
 		output.putInt("WatermanBoatCooldown", this.boatTripCooldown);
 		output.putInt("WatermanFishingCooldown", this.fishingCooldown);
 		output.putInt("WatermanAtollTradeCooldown", this.atollTradeCooldown);
@@ -179,6 +203,7 @@ public final class WatermanEntity extends Villager {
 		output.putInt("WatermanLastAtollTradeWealth", this.lastAtollTradeWealth);
 		output.putBoolean("WatermanPendingHomeDeposit", this.pendingHomeDeposit);
 		output.putInt("WatermanLastHomeDepositCount", this.lastHomeDepositCount);
+		output.putBoolean("WatermanReturnHome", this.returnHomeRequested);
 	}
 
 	@Override
@@ -186,6 +211,7 @@ public final class WatermanEntity extends Villager {
 		super.readAdditionalSaveData(input);
 		Optional<BlockPos> savedPort = input.read("WatermanPort", BlockPos.CODEC);
 		savedPort.ifPresent(this::setPortPos);
+		input.read("WatermanPortWater", BlockPos.CODEC).ifPresent(pos -> this.portWaterPos = pos.immutable());
 		this.boatTripCooldown = input.getIntOr("WatermanBoatCooldown", 80);
 		this.fishingCooldown = input.getIntOr("WatermanFishingCooldown", 20);
 		this.atollTradeCooldown = input.getIntOr("WatermanAtollTradeCooldown", 200);
@@ -195,11 +221,13 @@ public final class WatermanEntity extends Villager {
 		this.lastAtollTradeWealth = input.getIntOr("WatermanLastAtollTradeWealth", 0);
 		this.pendingHomeDeposit = input.getBooleanOr("WatermanPendingHomeDeposit", false);
 		this.lastHomeDepositCount = input.getIntOr("WatermanLastHomeDepositCount", 0);
+		this.returnHomeRequested = input.getBooleanOr("WatermanReturnHome", false);
 		this.makeFisherman();
 	}
 
 	boolean isWatermanRoutineActive() {
-		return this.storeWealthGoal != null && this.storeWealthGoal.isActive()
+		return this.seekHomeGoal != null && this.seekHomeGoal.isActive()
+			|| this.storeWealthGoal != null && this.storeWealthGoal.isActive()
 			|| this.boatTripGoal != null && this.boatTripGoal.isActive()
 			|| this.fishingGoal != null && this.fishingGoal.isActive();
 	}
@@ -212,6 +240,176 @@ public final class WatermanEntity extends Villager {
 	public void setPortPos(BlockPos portPos) {
 		this.portPos = portPos.immutable();
 		this.setHomeTo(this.portPos, PORT_HOME_RADIUS);
+	}
+
+	void rememberPortWater(Vec3 water) {
+		this.portWaterPos = BlockPos.containing(water).immutable();
+	}
+
+	@Nullable
+	Vec3 rememberedPortWater() {
+		return this.portWaterPos == null ? null : Vec3.atCenterOf(this.portWaterPos);
+	}
+
+	boolean isReturnHomeRequested() {
+		return this.returnHomeRequested;
+	}
+
+	void clearReturnHomeRequest() {
+		this.returnHomeRequested = false;
+	}
+
+	boolean isAtRememberedHome() {
+		return this.portPos != null && this.blockPosition().closerThan(this.portPos, 3.5D);
+	}
+
+	/**
+	 * Operator recall: sail or walk to the remembered port, otherwise start
+	 * looking for a settlement, bed or shore to adopt as home.
+	 */
+	public HomeOrder requestReturnHome(ServerLevel level) {
+		this.returnHomeRequested = true;
+		this.setFishingCooldown(Math.max(this.fishingCooldown, 400));
+		this.setAtollTradeCooldown(Math.max(this.atollTradeCooldown, 24000));
+		boolean hadHome = this.portPos != null && !this.portIsLocalAtoll(level);
+		if (this.portPos == null || this.portIsLocalAtoll(level)) {
+			BlockPos found = this.seekHomePort(level);
+			if (found != null && !isNearAtoll(level, found, 72.0D)) {
+				this.setPortPos(found);
+				hadHome = true;
+			}
+		}
+		if (this.getVehicle() instanceof AbstractShipEntity ship
+			&& (ship.isHelmsman(this) || ship.tryClaimHelm(this))
+			&& this.boatTripGoal != null) {
+			this.boatTripGoal.recallHome();
+		}
+		if (hadHome && this.isAtRememberedHome() && !isNearAtoll(level, this.blockPosition(), 72.0D)) {
+			this.returnHomeRequested = false;
+			return HomeOrder.RETURNING;
+		}
+		return hadHome ? HomeOrder.RETURNING : HomeOrder.SEEKING;
+	}
+
+	static boolean isNearAtoll(ServerLevel level, BlockPos pos, double radius) {
+		if (!AtollTradeCompat.isAvailable()) {
+			return false;
+		}
+		BlockPos atoll = AtollTradeCompat.findNearestAtoll(level, pos);
+		return atoll != null && atoll.distToCenterSqr(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D) <= radius * radius;
+	}
+
+	private boolean portIsLocalAtoll(ServerLevel level) {
+		return this.portPos != null
+			&& this.isNearAtoll(level, this.blockPosition(), 72.0D)
+			&& this.portPos.closerThan(this.blockPosition(), 80.0D);
+	}
+
+	boolean needsShipToReachHome() {
+		if (this.isInWater()) {
+			return true;
+		}
+		if (this.portPos == null) {
+			return false;
+		}
+		return this.distanceToSqr(Vec3.atCenterOf(this.portPos)) > 48.0D * 48.0D;
+	}
+
+	boolean hasNearbyEmptyShip(double range) {
+		return !this.level().getEntitiesOfClass(
+			AbstractShipEntity.class,
+			this.getBoundingBox().inflate(range, 8.0D, range),
+			ship -> ship.isAlive() && ship.getHelmsman() == null
+		).isEmpty();
+	}
+
+	@Nullable
+	BlockPos seekHomePort(ServerLevel level) {
+		if (this.portPos != null) {
+			return this.portPos;
+		}
+		BlockPos bed = this.findHomeBed(level, 32);
+		if (bed != null) {
+			return bed;
+		}
+		BlockPos neighbour = this.findNearbyWatermanPort(level, 96.0D);
+		if (neighbour != null) {
+			return neighbour;
+		}
+		BlockPos settlement = findNearestSettlement(level, this.blockPosition());
+		if (settlement != null && !isNearAtoll(level, settlement, 72.0D)) {
+			return settlement;
+		}
+		if (isNearAtoll(level, this.blockPosition(), 72.0D)) {
+			return null;
+		}
+		return this.findNearbyShore(level, 20);
+	}
+
+	@Nullable
+	private BlockPos findNearbyWatermanPort(ServerLevel level, double range) {
+		WatermanEntity nearest = null;
+		double nearestDistance = Double.MAX_VALUE;
+		for (WatermanEntity other : level.getEntitiesOfClass(
+			WatermanEntity.class,
+			this.getBoundingBox().inflate(range, 16.0D, range),
+			candidate -> candidate != this
+				&& candidate.isAlive()
+				&& candidate.getPortPos() != null
+				&& !isNearAtoll(level, candidate.getPortPos(), 72.0D)
+		)) {
+			double distance = this.distanceToSqr(other);
+			if (distance < nearestDistance) {
+				nearest = other;
+				nearestDistance = distance;
+			}
+		}
+		return nearest != null ? nearest.getPortPos() : null;
+	}
+
+	@Nullable
+	private BlockPos findNearbyShore(ServerLevel level, int radius) {
+		BlockPos origin = this.blockPosition();
+		BlockPos best = null;
+		float bestScore = 0.0F;
+		for (int x = -radius; x <= radius; x += 2) {
+			for (int z = -radius; z <= radius; z += 2) {
+				for (int y = -2; y <= 2; y++) {
+					BlockPos candidate = origin.offset(x, y, z);
+					if (!level.getFluidState(candidate).is(FluidTags.WATER)
+						&& level.getFluidState(candidate.below()).is(FluidTags.WATER)
+						&& level.getBlockState(candidate).isAir()) {
+						float score = 8.0F - (Math.abs(x) + Math.abs(z)) * 0.15F;
+						if (score > bestScore) {
+							bestScore = score;
+							best = candidate.immutable();
+						}
+					}
+				}
+			}
+		}
+		return best;
+	}
+
+	@Nullable
+	private static BlockPos findNearestSettlement(ServerLevel level, BlockPos origin) {
+		long cacheKey = (long)(origin.getX() >> 9) << 32 ^ origin.getZ() >> 9 & 0xFFFFFFFFL;
+		Map<Long, CachedSettlement> levelCache = SETTLEMENT_CACHE.computeIfAbsent(level, ignored -> new HashMap<>());
+		CachedSettlement cached = levelCache.get(cacheKey);
+		if (cached != null && cached.expiresAt > level.getGameTime()) {
+			return cached.center;
+		}
+		BlockPos center = level.findNearestMapStructure(
+			HOME_SETTLEMENTS,
+			origin,
+			SETTLEMENT_SEARCH_RADIUS_CHUNKS,
+			false
+		);
+		if (center != null) {
+			center = new BlockPos(center.getX(), origin.getY(), center.getZ());
+		}
+		levelCache.put(cacheKey, new CachedSettlement(level.getGameTime() + SETTLEMENT_CACHE_TICKS, center));
+		return center;
 	}
 
 	int getBoatTripCooldown() {
@@ -460,5 +658,13 @@ public final class WatermanEntity extends Villager {
 	/** Number of treasure items placed in the bed-side chest after the last return. */
 	public int getLastHomeDepositCount() {
 		return this.lastHomeDepositCount;
+	}
+
+	public enum HomeOrder {
+		RETURNING,
+		SEEKING
+	}
+
+	private record CachedSettlement(long expiresAt, @Nullable BlockPos center) {
 	}
 }

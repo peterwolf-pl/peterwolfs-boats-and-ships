@@ -11,6 +11,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.EntityTypeTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -46,6 +47,7 @@ final class WatermanBoatTripGoal extends Goal {
 	private static final float REVERSE_RUDDER = 1.85F;
 	private static final double TRAFFIC_LOOKAHEAD = 36.0D;
 	private static final double BERTH_OCCUPIED_RADIUS = 5.75D;
+	private static final double ATOLL_ESCAPE_RADIUS = 88.0D;
 	/**
 	 * Vanilla {@code CloudRenderer} advances the cloud layer along +X (east).
 	 * That drift is the wind used for starboard/port tack.
@@ -96,6 +98,20 @@ final class WatermanBoatTripGoal extends Goal {
 			this.ship = ridden;
 			return true;
 		}
+		if (this.waterman.isReturnHomeRequested()) {
+			if (this.waterman.getVehicle() instanceof AbstractShipEntity ridden) {
+				if (ridden.isHelmsman(this.waterman) || ridden.tryClaimHelm(this.waterman)) {
+					this.ship = ridden;
+					return true;
+				}
+				return false;
+			}
+			if (!this.waterman.needsShipToReachHome()) {
+				return false;
+			}
+			this.ship = this.findAvailableShip();
+			return this.ship != null;
+		}
 		if (this.waterman.hasPendingHomeDeposit()
 			|| this.waterman.getBoatTripCooldown() > 0
 			|| this.waterman.isPassenger()) {
@@ -114,9 +130,14 @@ final class WatermanBoatTripGoal extends Goal {
 	public boolean canContinueToUse() {
 		if (!this.active
 			|| !this.waterman.isAlive()
-			|| this.waterman.isTrading()
 			|| this.ship == null
 			|| !this.ship.isAlive()) {
+			return false;
+		}
+		if (this.waterman.isReturnHomeRequested() && this.hasHelm()) {
+			return true;
+		}
+		if (this.waterman.isTrading()) {
 			return false;
 		}
 		int limit = this.atollTradeVoyage ? MAX_ATOLL_TRIP_TICKS : MAX_TRIP_TICKS;
@@ -134,13 +155,17 @@ final class WatermanBoatTripGoal extends Goal {
 		this.tripCounted = false;
 		this.outboundTrail.clear();
 		this.portLand = this.waterman.getPortPos();
-		if (this.portLand == null) {
+		if (this.portLand == null && !this.waterman.isReturnHomeRequested()) {
 			this.portLand = this.waterman.blockPosition().immutable();
 			this.waterman.setPortPos(this.portLand);
 		}
 
 		if (this.ship != null && this.waterman.getVehicle() == this.ship && this.ship.isHelmsman(this.waterman)) {
-			this.beginCruise();
+			if (this.waterman.isReturnHomeRequested()) {
+				this.setupRecallCruise();
+			} else {
+				this.beginCruise();
+			}
 		} else {
 			this.phase = Phase.APPROACHING;
 			this.moveToShip();
@@ -149,11 +174,14 @@ final class WatermanBoatTripGoal extends Goal {
 
 	@Override
 	public void stop() {
-		if (this.ship != null && this.ship.isHelmsman(this.waterman)) {
+		if (this.ship != null && this.ship.isHelmsman(this.waterman)
+			&& !(this.waterman.isReturnHomeRequested() && !this.ship.hasSafeDismountLocation(this.waterman))) {
 			this.ship.releaseHelm(this.waterman);
 		}
 		this.waterman.getNavigation().stop();
-		this.waterman.setBoatTripCooldown(400 + this.waterman.getRandom().nextInt(401));
+		if (!this.waterman.isReturnHomeRequested()) {
+			this.waterman.setBoatTripCooldown(400 + this.waterman.getRandom().nextInt(401));
+		}
 		this.active = false;
 		this.ship = null;
 		this.excursionTarget = null;
@@ -187,6 +215,15 @@ final class WatermanBoatTripGoal extends Goal {
 		if (this.ship == null) {
 			return;
 		}
+		if (this.waterman.isReturnHomeRequested()
+			&& this.phase != Phase.WALKING_HOME
+			&& this.phase != Phase.APPROACHING) {
+			if (this.phase != Phase.RETURNING) {
+				this.setupRecallCruise();
+			}
+			this.tickReturning();
+			return;
+		}
 		if (this.atollTradeVoyage || this.phase == Phase.RETURNING || this.phase == Phase.OUTBOUND) {
 			this.refreshVoyageTicket();
 		}
@@ -202,6 +239,18 @@ final class WatermanBoatTripGoal extends Goal {
 
 	boolean isActive() {
 		return this.active;
+	}
+
+	void recallHome() {
+		if (this.ship == null && this.waterman.getVehicle() instanceof AbstractShipEntity ridden) {
+			this.ship = ridden;
+		}
+		if (this.ship == null || !this.hasHelm() && !this.ship.tryClaimHelm(this.waterman)) {
+			return;
+		}
+		this.active = true;
+		this.setupRecallCruise();
+		this.tickReturning();
 	}
 
 	private void tickApproaching() {
@@ -226,9 +275,14 @@ final class WatermanBoatTripGoal extends Goal {
 			this.active = false;
 			return;
 		}
+		if (this.waterman.isReturnHomeRequested()) {
+			this.setupRecallCruise();
+			return;
+		}
 		this.waterman.getNavigation().stop();
 		this.tripTicks = 0;
 		this.portWater = this.ship.position();
+		this.waterman.rememberPortWater(this.portWater);
 		this.atollTradeVoyage = false;
 		this.atollWealthLoaded = false;
 		this.tradingTicks = 0;
@@ -301,47 +355,103 @@ final class WatermanBoatTripGoal extends Goal {
 	}
 
 	private void tickReturning() {
-		if (!this.hasHelm() || this.portWater == null) {
+		if (!this.hasHelm()) {
+			if (!this.waterman.isReturnHomeRequested()) {
+				this.active = false;
+			}
+			return;
+		}
+		if (this.tryDockAndDismount()) {
+			return;
+		}
+		if (this.waterman.isReturnHomeRequested()) {
+			if (this.isNearHomeBerth(14.0D)) {
+				this.steerToward(this.homeApproachTarget(), 0.20F);
+				return;
+			}
+			this.applyRecallSteering();
+			return;
+		}
+		if (this.portWater == null) {
 			this.active = false;
 			return;
 		}
 		if (this.tryUnjam()) {
 			return;
 		}
-		double portDistanceSqr = horizontalDistanceSqr(this.ship.position(), this.portWater);
-		if (portDistanceSqr < 7.0D && this.ship.hasSafeDismountLocation(this.waterman)) {
-			this.ship.setControl(0.0F, 0.0F);
-			this.ship.setDeltaMovement(Vec3.ZERO);
-			if (!this.ship.releaseHelm(this.waterman)) {
-				// Never jump into open water. Stay aboard until the hull is both
-				// motionless and alongside a solid bank or pier.
-				return;
-			}
-			if (!this.tripCounted) {
-				this.tripCounted = true;
-				this.waterman.markBoatTripCompleted();
-				if (this.atollTradeVoyage) {
-					if (!this.atollWealthLoaded) {
-						this.waterman.loadAtollTradeWealth(this.ship);
-						this.atollWealthLoaded = true;
-					}
-					this.waterman.collectAtollWealthFrom(this.ship);
-					this.waterman.markAtollTradeCompleted();
-				}
-			}
-			this.releaseVoyageTicket();
-			this.phase = Phase.WALKING_HOME;
-			this.moveHome();
-			return;
-		}
-		if (portDistanceSqr < 7.0D) {
-			// The old broad arrival radius could stop a small hull several blocks
-			// offshore. Continue a slow final approach until a real bank/pier is
-			// beside the hull, then the branch above performs the full stop.
-			this.steerWithAvoidance(this.portWater, 0.20F);
+		if (horizontalDistanceSqr(this.ship.position(), this.portWater) < 7.0D) {
+			this.steerWithAvoidance(this.homeApproachTarget(), 0.20F);
 			return;
 		}
 		this.followRoute(this.portWater, 0.72F);
+	}
+
+	private boolean tryDockAndDismount() {
+		if (this.ship == null || !this.hasHelm() || !this.isNearHomeBerth(8.0D)) {
+			return false;
+		}
+		if (this.isArrivingAtAtollInsteadOfHome()) {
+			return false;
+		}
+		if (!this.ship.hasSafeDismountLocation(this.waterman)) {
+			this.steerToward(this.homeApproachTarget(), 0.18F);
+			return true;
+		}
+		this.ship.setControl(0.0F, 0.0F);
+		this.ship.setDeltaMovement(Vec3.ZERO);
+		if (!this.ship.releaseHelm(this.waterman)) {
+			return true;
+		}
+		if (!this.tripCounted) {
+			this.tripCounted = true;
+			this.waterman.markBoatTripCompleted();
+			if (this.atollTradeVoyage) {
+				if (!this.atollWealthLoaded) {
+					this.waterman.loadAtollTradeWealth(this.ship);
+					this.atollWealthLoaded = true;
+				}
+				this.waterman.collectAtollWealthFrom(this.ship);
+				this.waterman.markAtollTradeCompleted();
+			}
+		}
+		this.releaseVoyageTicket();
+		this.waterman.clearReturnHomeRequest();
+		this.phase = Phase.WALKING_HOME;
+		this.moveHome();
+		return true;
+	}
+
+	private boolean isNearHomeBerth(double radius) {
+		if (this.ship == null) {
+			return false;
+		}
+		double radiusSqr = radius * radius;
+		if (this.portWater != null && horizontalDistanceSqr(this.ship.position(), this.portWater) <= radiusSqr) {
+			return true;
+		}
+		return this.portLand != null
+			&& horizontalDistanceSqr(this.ship.position(), Vec3.atCenterOf(this.portLand)) <= radiusSqr;
+	}
+
+	private Vec3 homeApproachTarget() {
+		if (this.portLand != null) {
+			return Vec3.atCenterOf(this.portLand);
+		}
+		if (this.portWater != null) {
+			return this.portWater;
+		}
+		return this.ship.position();
+	}
+
+	private boolean isArrivingAtAtollInsteadOfHome() {
+		ServerLevel level = (ServerLevel)this.waterman.level();
+		if (!WatermanEntity.isNearAtoll(level, this.ship.blockPosition(), 72.0D)) {
+			return false;
+		}
+		if (this.portLand != null && !WatermanEntity.isNearAtoll(level, this.portLand, 72.0D)) {
+			return true;
+		}
+		return this.portWater != null && this.isAtollWater(this.portWater);
 	}
 
 	private void beginAtollTrade() {
@@ -415,6 +525,9 @@ final class WatermanBoatTripGoal extends Goal {
 	}
 
 	private void tickWalkingHome() {
+		if (this.portLand != null && this.waterman.blockPosition().closerToCenterThan(Vec3.atCenterOf(this.portLand), 2.5D)) {
+			this.waterman.clearReturnHomeRequest();
+		}
 		if (this.waterman.hasPendingHomeDeposit()
 			|| this.portLand == null
 			|| this.waterman.blockPosition().closerToCenterThan(Vec3.atCenterOf(this.portLand), 2.5D)) {
@@ -458,19 +571,213 @@ final class WatermanBoatTripGoal extends Goal {
 		float desiredYaw = (float)Math.toDegrees(Math.atan2(-dx, dz));
 		float yawError = Mth.wrapDegrees(desiredYaw - this.ship.getYRot());
 		float rudder = Mth.clamp(yawError / 34.0F, -1.0F, 1.0F);
-		float thrust = Math.abs(yawError) > 95.0F ? Math.min(0.22F, cruiseThrust) : cruiseThrust;
+		float turnThrust = this.waterman.isReturnHomeRequested() ? 0.48F : 0.22F;
+		float thrust = Math.abs(yawError) > 95.0F ? Math.min(turnThrust, cruiseThrust) : cruiseThrust;
 		this.ship.setControl(thrust, rudder);
 		this.waterman.getLookControl().setLookAt(target.x, target.y, target.z);
 	}
 
 	private void steerWithAvoidance(Vec3 target, float cruiseThrust) {
+		if (this.waterman.isReturnHomeRequested()) {
+			this.steerToward(target, cruiseThrust);
+			return;
+		}
 		TrafficManeuver maneuver = this.planTrafficManeuver(target, cruiseThrust);
 		this.steerToward(maneuver.target, maneuver.thrust);
 	}
 
-	private void beginReturnTrip() {
-		if (this.ship == null || this.portWater == null) {
+	private void setupRecallCruise() {
+		if (this.ship == null) {
 			this.active = false;
+			return;
+		}
+		this.waterman.getNavigation().stop();
+		this.reverseTicks = 0;
+		this.jamTicks = 0;
+		this.atollTradeVoyage = false;
+		this.excursionTarget = null;
+		if (this.portLand == null) {
+			this.portLand = this.waterman.getPortPos();
+		}
+		if (this.portLand == null) {
+			BlockPos found = this.waterman.seekHomePort((ServerLevel)this.waterman.level());
+			if (found != null && !WatermanEntity.isNearAtoll(
+				(ServerLevel)this.waterman.level(),
+				found,
+				72.0D
+			)) {
+				this.waterman.setPortPos(found);
+				this.portLand = found;
+			}
+		}
+		this.portWater = this.resolveHomeWater();
+		this.phase = Phase.RETURNING;
+		this.blockedRouteTicks = 0;
+		if (this.portWater != null) {
+			this.planRouteTo(this.portWater);
+		}
+	}
+
+	private void applyRecallSteering() {
+		if (this.ship == null) {
+			return;
+		}
+		this.reverseTicks = 0;
+		if (this.ship.horizontalCollision && this.ship.getHorizontalSpeed() < 0.06D) {
+			float side = (this.waterman.getId() & 1) == 0 ? 1.8F : -1.8F;
+			this.ship.setControl(-0.52F, side);
+			return;
+		}
+		Vec3 open = this.pickOpenRecallHeading();
+		if (open != null) {
+			this.steerToward(open, 0.95F);
+			return;
+		}
+		float side = (this.waterman.getId() & 1) == 0 ? 1.8F : -1.8F;
+		this.ship.setControl(-0.52F, side);
+	}
+
+	@Nullable
+	private Vec3 pickOpenRecallHeading() {
+		if (this.ship == null) {
+			return null;
+		}
+		ServerLevel level = (ServerLevel)this.waterman.level();
+		Vec3 here = this.ship.position();
+		Vec3 preferred = this.recallEscapeTarget();
+		if (preferred == null && this.portWater != null) {
+			preferred = this.portWater;
+		}
+		if (preferred == null) {
+			preferred = here.add(headingOf(this.ship).scale(16.0D));
+		}
+		double preferredAngle = Math.atan2(preferred.z - here.z, preferred.x - here.x);
+		double[] offsets = {0.0D, 30.0D, -30.0D, 60.0D, -60.0D, 90.0D, -90.0D, 120.0D, -120.0D, 150.0D, -150.0D, 180.0D};
+		double probe = Math.max(10.0D, this.ship.getBbWidth() * 3.0D);
+		for (double offset : offsets) {
+			double angle = preferredAngle + Math.toRadians(offset);
+			Vec3 candidate = new Vec3(
+				here.x + Math.cos(angle) * probe,
+				here.y,
+				here.z + Math.sin(angle) * probe
+			);
+			if (WaterRoutePlanner.isSegmentNavigable(level, this.ship, here, candidate)) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private Vec3 resolveHomeWater() {
+		Vec3 remembered = this.waterman.rememberedPortWater();
+		if (remembered != null && !this.isAtollWater(remembered)) {
+			return remembered;
+		}
+		if (this.portWater != null && !this.isAtollWater(this.portWater)) {
+			return this.portWater;
+		}
+		if (this.portLand != null) {
+			Vec3 beside = this.findWaterBeside(this.portLand);
+			if (beside != null && !this.isAtollWater(beside)) {
+				this.waterman.rememberPortWater(beside);
+				return beside;
+			}
+		}
+		return remembered != null ? remembered : this.portWater;
+	}
+
+	private boolean isAtollWater(Vec3 water) {
+		return WatermanEntity.isNearAtoll(
+			(ServerLevel)this.waterman.level(),
+			BlockPos.containing(water),
+			72.0D
+		);
+	}
+
+	@Nullable
+	private Vec3 findWaterBeside(BlockPos land) {
+		if (this.ship == null) {
+			return null;
+		}
+		ServerLevel level = (ServerLevel)this.waterman.level();
+		for (int radius = 0; radius <= 8; radius++) {
+			for (int dx = -radius; dx <= radius; dx++) {
+				for (int dz = -radius; dz <= radius; dz++) {
+					if (radius > 0 && Math.abs(dx) != radius && Math.abs(dz) != radius) {
+						continue;
+					}
+					for (int dy = -2; dy <= 2; dy++) {
+						BlockPos candidate = land.offset(dx, dy, dz);
+						if (level.getFluidState(candidate).is(FluidTags.WATER)
+							&& !level.getFluidState(candidate.above()).is(FluidTags.WATER)) {
+							return Vec3.atCenterOf(candidate);
+						}
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private Vec3 recallEscapeTarget() {
+		if (this.ship == null) {
+			return null;
+		}
+		ServerLevel level = (ServerLevel)this.waterman.level();
+		Vec3 here = this.ship.position();
+		Vec3 from = null;
+		BlockPos atoll = AtollTradeCompat.isAvailable()
+			? AtollTradeCompat.findNearestAtoll(level, this.ship.blockPosition())
+			: null;
+		if (atoll != null && horizontalDistanceSqr(here, Vec3.atCenterOf(atoll)) < ATOLL_ESCAPE_RADIUS * ATOLL_ESCAPE_RADIUS) {
+			from = Vec3.atCenterOf(atoll);
+		} else {
+			Vec3 cluster = this.nearbyHullCentroid(18.0D);
+			if (cluster != null && horizontalDistanceSqr(here, cluster) < 12.0D * 12.0D) {
+				from = cluster;
+			}
+		}
+		if (from == null) {
+			return null;
+		}
+		Vec3 out = here.subtract(from);
+		if (out.horizontalDistanceSqr() < 1.0D) {
+			out = headingOf(this.ship);
+		}
+		double length = Math.sqrt(out.x * out.x + out.z * out.z);
+		return here.add(out.x / length * 40.0D, 0.0D, out.z / length * 40.0D);
+	}
+
+	@Nullable
+	private Vec3 nearbyHullCentroid(double range) {
+		if (this.ship == null) {
+			return null;
+		}
+		List<Entity> hulls = this.findNearbyWatercraft(range);
+		if (hulls.size() < 2) {
+			return null;
+		}
+		double x = 0.0D;
+		double z = 0.0D;
+		for (Entity hull : hulls) {
+			x += hull.getX();
+			z += hull.getZ();
+		}
+		return new Vec3(x / hulls.size(), this.ship.getY(), z / hulls.size());
+	}
+
+	private void beginReturnTrip() {
+		if (this.ship == null) {
+			this.active = false;
+			return;
+		}
+		if (this.portWater == null) {
+			this.portWater = this.resolveHomeWater();
+		}
+		if (this.portWater == null) {
+			this.setupRecallCruise();
 			return;
 		}
 		this.phase = Phase.RETURNING;
@@ -1056,13 +1363,13 @@ final class WatermanBoatTripGoal extends Goal {
 		ChunkPos currentChunk = new ChunkPos(shipPos.getX() >> 4, shipPos.getZ() >> 4);
 		if (!currentChunk.equals(this.voyageTicketChunk)) {
 			level.getChunkSource().addTicketWithRadius(
-				PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET,
+				PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET.get(),
 				currentChunk,
 				VOYAGE_TICKET_RADIUS
 			);
 			if (this.voyageTicketChunk != null) {
 				level.getChunkSource().removeTicketWithRadius(
-					PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET,
+					PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET.get(),
 					this.voyageTicketChunk,
 					VOYAGE_TICKET_RADIUS
 				);
@@ -1071,7 +1378,7 @@ final class WatermanBoatTripGoal extends Goal {
 		} else if (this.tripTicks % 40 == 0) {
 			// Re-adding the same ticket resets its short timeout.
 			level.getChunkSource().addTicketWithRadius(
-				PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET,
+				PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET.get(),
 				currentChunk,
 				VOYAGE_TICKET_RADIUS
 			);
@@ -1081,7 +1388,7 @@ final class WatermanBoatTripGoal extends Goal {
 	private void releaseVoyageTicket() {
 		if (this.voyageTicketChunk != null && this.waterman.level() instanceof ServerLevel level) {
 			level.getChunkSource().removeTicketWithRadius(
-				PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET,
+				PeterwolfsBoatsAndShipsMod.WATERMAN_VOYAGE_TICKET.get(),
 				this.voyageTicketChunk,
 				VOYAGE_TICKET_RADIUS
 			);
@@ -1094,7 +1401,9 @@ final class WatermanBoatTripGoal extends Goal {
 		List<AbstractShipEntity> ships = this.waterman.level().getEntitiesOfClass(
 			AbstractShipEntity.class,
 			this.waterman.getBoundingBox().inflate(SEARCH_RANGE, 8.0D, SEARCH_RANGE),
-			candidate -> candidate.isAlive() && !candidate.isVehicle() && candidate.getHelmsman() == null
+			candidate -> candidate.isAlive()
+				&& candidate.getHelmsman() == null
+				&& (this.waterman.isReturnHomeRequested() || !candidate.isVehicle())
 		);
 		AbstractShipEntity nearest = null;
 		double nearestDistance = Double.MAX_VALUE;

@@ -11,15 +11,6 @@ import com.piotrek.peterwolfsboatsandships.item.ShipItem;
 import com.piotrek.peterwolfsboatsandships.network.ShipInputPayload;
 import com.piotrek.peterwolfsboatsandships.worldgen.ModStructures;
 import java.util.Set;
-import java.util.function.Function;
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
-import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -34,21 +25,41 @@ import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SpawnEggItem;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.neoforged.neoforge.registries.DeferredBlock;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredItem;
+import net.neoforged.neoforge.registries.DeferredRegister;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
+@Mod(PeterwolfsBoatsAndShipsMod.MOD_ID)
+public final class PeterwolfsBoatsAndShipsMod {
 	public static final String MOD_ID = "peterwolfs_boats_and_ships";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+	public static final DeferredRegister.Entities ENTITY_TYPES = DeferredRegister.createEntities(MOD_ID);
+	public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MOD_ID);
+	public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MOD_ID);
+	public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MOD_ID);
+	public static final DeferredRegister<TicketType> TICKET_TYPES = DeferredRegister.create(Registries.TICKET_TYPE, MOD_ID);
+	public static final DeferredRegister<CreativeModeTab> CREATIVE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MOD_ID);
+
 	/** Short-lived moving ticket used only while an autonomous atoll voyage is active. */
-	public static final TicketType WATERMAN_VOYAGE_TICKET = Registry.register(
-		BuiltInRegistries.TICKET_TYPE,
-		id("waterman_voyage"),
-		new TicketType(
+	public static final DeferredHolder<TicketType, TicketType> WATERMAN_VOYAGE_TICKET = TICKET_TYPES.register(
+		"waterman_voyage",
+		() -> new TicketType(
 			100L,
 			TicketType.FLAG_LOADING
 				| TicketType.FLAG_SIMULATION
@@ -61,31 +72,60 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 	// step on from a pier like normal blocks in water. Visual models stay tall.
 	// Keep height ≤ ~0.85 so vanilla step-up (0.6) reaches the deck from water-level piers.
 	public static final ResourceKey<EntityType<?>> RIVER_SKIFF_KEY = entityKey("river_skiff");
-	public static final EntityType<RiverSkiffEntity> RIVER_SKIFF = Registry.register(BuiltInRegistries.ENTITY_TYPE, RIVER_SKIFF_KEY,
-		EntityType.Builder.of(RiverSkiffEntity::new, MobCategory.MISC).sized(2.2F, 0.6F).clientTrackingRange(10).build(RIVER_SKIFF_KEY));
+	public static final DeferredHolder<EntityType<?>, EntityType<RiverSkiffEntity>> RIVER_SKIFF = ENTITY_TYPES.register(
+		"river_skiff",
+		() -> EntityType.Builder.of(RiverSkiffEntity::new, MobCategory.MISC)
+			.sized(2.2F, 0.6F)
+			.clientTrackingRange(10)
+			.build(RIVER_SKIFF_KEY)
+	);
 	public static final ResourceKey<EntityType<?>> EXPLORER_SLOOP_KEY = entityKey("explorer_sloop");
-	public static final EntityType<ExplorerSloopEntity> EXPLORER_SLOOP = Registry.register(BuiltInRegistries.ENTITY_TYPE, EXPLORER_SLOOP_KEY,
-		EntityType.Builder.of(ExplorerSloopEntity::new, MobCategory.MISC).sized(3.4F, 0.75F).clientTrackingRange(12).build(EXPLORER_SLOOP_KEY));
+	public static final DeferredHolder<EntityType<?>, EntityType<ExplorerSloopEntity>> EXPLORER_SLOOP = ENTITY_TYPES.register(
+		"explorer_sloop",
+		() -> EntityType.Builder.of(ExplorerSloopEntity::new, MobCategory.MISC)
+			.sized(3.4F, 0.75F)
+			.clientTrackingRange(12)
+			.build(EXPLORER_SLOOP_KEY)
+	);
 	public static final ResourceKey<EntityType<?>> MERCHANT_SCHOONER_KEY = entityKey("merchant_schooner");
-	public static final EntityType<MerchantSchoonerEntity> MERCHANT_SCHOONER = Registry.register(BuiltInRegistries.ENTITY_TYPE, MERCHANT_SCHOONER_KEY,
-		EntityType.Builder.of(MerchantSchoonerEntity::new, MobCategory.MISC).sized(4.8F, 0.85F).clientTrackingRange(14).build(MERCHANT_SCHOONER_KEY));
+	public static final DeferredHolder<EntityType<?>, EntityType<MerchantSchoonerEntity>> MERCHANT_SCHOONER = ENTITY_TYPES.register(
+		"merchant_schooner",
+		() -> EntityType.Builder.of(MerchantSchoonerEntity::new, MobCategory.MISC)
+			.sized(4.8F, 0.85F)
+			.clientTrackingRange(14)
+			.build(MERCHANT_SCHOONER_KEY)
+	);
 	public static final ResourceKey<EntityType<?>> WATERMAN_KEY = entityKey("waterman");
-	public static final EntityType<WatermanEntity> WATERMAN = Registry.register(BuiltInRegistries.ENTITY_TYPE, WATERMAN_KEY,
-		EntityType.Builder.<WatermanEntity>of(WatermanEntity::new, MobCategory.CREATURE).sized(0.6F, 1.95F).clientTrackingRange(10).build(WATERMAN_KEY));
-
-	public static final ShipItem RIVER_SKIFF_ITEM = registerShipItem("river_skiff", level -> new RiverSkiffEntity(RIVER_SKIFF, level));
-	public static final ShipItem EXPLORER_SLOOP_ITEM = registerShipItem("explorer_sloop", level -> new ExplorerSloopEntity(EXPLORER_SLOOP, level));
-	public static final ShipItem MERCHANT_SCHOONER_ITEM = registerShipItem("merchant_schooner", level -> new MerchantSchoonerEntity(MERCHANT_SCHOONER, level));
-	public static final ResourceKey<Item> WATERMAN_SPAWN_EGG_KEY = ResourceKey.create(Registries.ITEM, id("waterman_spawn_egg"));
-	public static final SpawnEggItem WATERMAN_SPAWN_EGG = Registry.register(
-		BuiltInRegistries.ITEM,
-		WATERMAN_SPAWN_EGG_KEY,
-		new SpawnEggItem(new Item.Properties().spawnEgg(WATERMAN).setId(WATERMAN_SPAWN_EGG_KEY))
+	public static final DeferredHolder<EntityType<?>, EntityType<WatermanEntity>> WATERMAN = ENTITY_TYPES.register(
+		"waterman",
+		() -> EntityType.Builder.<WatermanEntity>of(WatermanEntity::new, MobCategory.CREATURE)
+			.sized(0.6F, 1.95F)
+			.clientTrackingRange(10)
+			.build(WATERMAN_KEY)
 	);
 
-	public static final LighthouseLightBlock LIGHTHOUSE_LIGHT = registerBlock(
+	public static final DeferredItem<ShipItem> RIVER_SKIFF_ITEM = registerShipItem(
+		"river_skiff",
+		level -> new RiverSkiffEntity(RIVER_SKIFF.get(), level)
+	);
+	public static final DeferredItem<ShipItem> EXPLORER_SLOOP_ITEM = registerShipItem(
+		"explorer_sloop",
+		level -> new ExplorerSloopEntity(EXPLORER_SLOOP.get(), level)
+	);
+	public static final DeferredItem<ShipItem> MERCHANT_SCHOONER_ITEM = registerShipItem(
+		"merchant_schooner",
+		level -> new MerchantSchoonerEntity(MERCHANT_SCHOONER.get(), level)
+	);
+	public static final ResourceKey<Item> WATERMAN_SPAWN_EGG_KEY = ResourceKey.create(Registries.ITEM, id("waterman_spawn_egg"));
+	public static final DeferredItem<SpawnEggItem> WATERMAN_SPAWN_EGG = ITEMS.register(
+		"waterman_spawn_egg",
+		() -> new SpawnEggItem(new Item.Properties().spawnEgg(WATERMAN.get()).setId(WATERMAN_SPAWN_EGG_KEY))
+	);
+
+	public static final DeferredBlock<LighthouseLightBlock> LIGHTHOUSE_LIGHT = BLOCKS.registerBlock(
 		"lighthouse_light",
-		key -> new LighthouseLightBlock(BlockBehaviour.Properties.of()
+		LighthouseLightBlock::new,
+		() -> BlockBehaviour.Properties.of()
 			.strength(1.5F, 6.0F)
 			.sound(SoundType.LANTERN)
 			.lightLevel(LighthouseLightBlock::lightEmission)
@@ -93,74 +133,120 @@ public final class PeterwolfsBoatsAndShipsMod implements ModInitializer {
 			.isRedstoneConductor((state, level, pos) -> false)
 			.isSuffocating((state, level, pos) -> false)
 			.isViewBlocking((state, level, pos) -> false)
-			.setId(key))
 	);
-	public static final BlockItem LIGHTHOUSE_LIGHT_ITEM = registerBlockItem("lighthouse_light", LIGHTHOUSE_LIGHT);
-	public static final BlockEntityType<LighthouseLightBlockEntity> LIGHTHOUSE_LIGHT_BLOCK_ENTITY = Registry.register(
-		BuiltInRegistries.BLOCK_ENTITY_TYPE,
-		id("lighthouse_light"),
-		new BlockEntityType<>(LighthouseLightBlockEntity::new, Set.of(LIGHTHOUSE_LIGHT))
+	public static final ResourceKey<Item> LIGHTHOUSE_LIGHT_ITEM_KEY = ResourceKey.create(Registries.ITEM, id("lighthouse_light"));
+	public static final DeferredItem<BlockItem> LIGHTHOUSE_LIGHT_ITEM = ITEMS.register(
+		"lighthouse_light",
+		() -> {
+			BlockItem item = new BlockItem(
+				LIGHTHOUSE_LIGHT.get(),
+				new Item.Properties().setId(LIGHTHOUSE_LIGHT_ITEM_KEY).useBlockDescriptionPrefix()
+			);
+			item.registerBlocks(Item.BY_BLOCK, item);
+			return item;
+		}
+	);
+	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<LighthouseLightBlockEntity>> LIGHTHOUSE_LIGHT_BLOCK_ENTITY = BLOCK_ENTITY_TYPES.register(
+		"lighthouse_light",
+		() -> new BlockEntityType<>(LighthouseLightBlockEntity::new, Set.of(LIGHTHOUSE_LIGHT.get()))
 	);
 
-	public static final CreativeModeTab SHIPS_TAB = FabricCreativeModeTab.builder()
-		.title(Component.translatable("itemGroup.peterwolfs_boats_and_ships.group"))
-		.icon(RIVER_SKIFF_ITEM::getDefaultInstance)
-		.displayItems((parameters, output) -> {
-			output.accept(RIVER_SKIFF_ITEM);
-			output.accept(EXPLORER_SLOOP_ITEM);
-			output.accept(MERCHANT_SCHOONER_ITEM);
-			output.accept(WATERMAN_SPAWN_EGG);
-			output.accept(LIGHTHOUSE_LIGHT_ITEM);
-		})
-		.build();
+	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> SHIPS_TAB = CREATIVE_TABS.register(
+		"group",
+		() -> CreativeModeTab.builder()
+			.title(Component.translatable("itemGroup.peterwolfs_boats_and_ships.group"))
+			.icon(() -> RIVER_SKIFF_ITEM.get().getDefaultInstance())
+			.displayItems((parameters, output) -> {
+				output.accept(RIVER_SKIFF_ITEM.get());
+				output.accept(EXPLORER_SLOOP_ITEM.get());
+				output.accept(MERCHANT_SCHOONER_ITEM.get());
+				output.accept(WATERMAN_SPAWN_EGG.get());
+				output.accept(LIGHTHOUSE_LIGHT_ITEM.get());
+			})
+			.build()
+	);
 
-	@Override
-	public void onInitialize() {
-		Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, id("group"), SHIPS_TAB);
-		// A discoverable custom tab is useful, but these must also appear in a
-		// vanilla tab so players can obtain them from the normal Creative search.
-		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(output -> {
-			output.insertAfter(Items.OAK_BOAT, RIVER_SKIFF_ITEM);
-			output.insertAfter(RIVER_SKIFF_ITEM, EXPLORER_SLOOP_ITEM);
-			output.insertAfter(EXPLORER_SLOOP_ITEM, MERCHANT_SCHOONER_ITEM);
-		});
-		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(output -> {
-			output.accept(LIGHTHOUSE_LIGHT_ITEM);
-		});
-		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(output -> {
-			output.insertAfter(Items.VILLAGER_SPAWN_EGG, WATERMAN_SPAWN_EGG);
-		});
-		FabricDefaultAttributeRegistry.register(WATERMAN, WatermanEntity.createAttributes());
-		ModStructures.register();
-		WatermanSettlementCommands.register();
-		PayloadTypeRegistry.serverboundPlay().register(ShipInputPayload.TYPE, ShipInputPayload.CODEC);
-		ServerPlayNetworking.registerGlobalReceiver(ShipInputPayload.TYPE, (payload, context) -> context.server().execute(() -> {
-			ServerPlayer player = context.player();
-			if (player.getVehicle() instanceof com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity ship && ship.isHelmsman(player)) {
-				ship.setControl(payload.thrust(), payload.rudder());
-			}
-		}));
+	public PeterwolfsBoatsAndShipsMod(IEventBus modBus) {
+		ENTITY_TYPES.register(modBus);
+		BLOCKS.register(modBus);
+		ITEMS.register(modBus);
+		BLOCK_ENTITY_TYPES.register(modBus);
+		TICKET_TYPES.register(modBus);
+		CREATIVE_TABS.register(modBus);
+		ModStructures.register(modBus);
+		modBus.addListener(PeterwolfsBoatsAndShipsMod::addCreative);
+		modBus.addListener(PeterwolfsBoatsAndShipsMod::registerAttributes);
+		modBus.addListener(PeterwolfsBoatsAndShipsMod::registerPayloads);
+		NeoForge.EVENT_BUS.register(ServerEvents.class);
 		LOGGER.info("Peterwolf's Minecraft Boats and Ships is ready to sail.");
 	}
 
-	private static ResourceKey<EntityType<?>> entityKey(String path) { return ResourceKey.create(Registries.ENTITY_TYPE, id(path)); }
+	private static void addCreative(BuildCreativeModeTabContentsEvent event) {
+		if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
+			event.insertAfter(
+				Items.OAK_BOAT.getDefaultInstance(),
+				RIVER_SKIFF_ITEM.get().getDefaultInstance(),
+				CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
+			);
+			event.insertAfter(
+				RIVER_SKIFF_ITEM.get().getDefaultInstance(),
+				EXPLORER_SLOOP_ITEM.get().getDefaultInstance(),
+				CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
+			);
+			event.insertAfter(
+				EXPLORER_SLOOP_ITEM.get().getDefaultInstance(),
+				MERCHANT_SCHOONER_ITEM.get().getDefaultInstance(),
+				CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
+			);
+		} else if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
+			event.accept(LIGHTHOUSE_LIGHT_ITEM.get());
+		} else if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
+			event.insertAfter(
+				Items.VILLAGER_SPAWN_EGG.getDefaultInstance(),
+				WATERMAN_SPAWN_EGG.get().getDefaultInstance(),
+				CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
+			);
+		}
+	}
 
-	private static ShipItem registerShipItem(String path, java.util.function.Function<net.minecraft.world.level.Level, ? extends com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity> factory) {
+	private static void registerAttributes(EntityAttributeCreationEvent event) {
+		event.put(WATERMAN.get(), WatermanEntity.createAttributes().build());
+	}
+
+	private static void registerPayloads(RegisterPayloadHandlersEvent event) {
+		PayloadRegistrar registrar = event.registrar("1");
+		registrar.playToServer(ShipInputPayload.TYPE, ShipInputPayload.CODEC, (payload, context) -> {
+			if (context.player() instanceof ServerPlayer player
+				&& player.getVehicle() instanceof com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity ship
+				&& ship.isHelmsman(player)) {
+				ship.setControl(payload.thrust(), payload.rudder());
+			}
+		});
+	}
+
+	private static ResourceKey<EntityType<?>> entityKey(String path) {
+		return ResourceKey.create(Registries.ENTITY_TYPE, id(path));
+	}
+
+	private static DeferredItem<ShipItem> registerShipItem(
+		String path,
+		java.util.function.Function<net.minecraft.world.level.Level, ? extends com.piotrek.peterwolfsboatsandships.entity.AbstractShipEntity> factory
+	) {
 		ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id(path));
-		return Registry.register(BuiltInRegistries.ITEM, key, new ShipItem(new Item.Properties().setId(key).stacksTo(1), factory));
+		return ITEMS.register(path, () -> new ShipItem(new Item.Properties().setId(key).stacksTo(1), factory));
 	}
 
-	private static <T extends Block> T registerBlock(final String path, final Function<ResourceKey<Block>, T> factory) {
-		ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, id(path));
-		return Registry.register(BuiltInRegistries.BLOCK, key, factory.apply(key));
+	public static Identifier id(String path) {
+		return Identifier.fromNamespaceAndPath(MOD_ID, path);
 	}
 
-	private static BlockItem registerBlockItem(final String path, final Block block) {
-		ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id(path));
-		BlockItem item = new BlockItem(block, new Item.Properties().setId(key).useBlockDescriptionPrefix());
-		item.registerBlocks(Item.BY_BLOCK, item);
-		return Registry.register(BuiltInRegistries.ITEM, key, item);
-	}
+	public static final class ServerEvents {
+		private ServerEvents() {
+		}
 
-	public static Identifier id(String path) { return Identifier.fromNamespaceAndPath(MOD_ID, path); }
+		@SubscribeEvent
+		public static void onRegisterCommands(RegisterCommandsEvent event) {
+			WatermanSettlementCommands.register(event.getDispatcher());
+		}
+	}
 }

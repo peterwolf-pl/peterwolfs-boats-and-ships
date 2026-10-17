@@ -19,7 +19,7 @@ public final class LighthouseLightBlockEntity extends BlockEntity {
 	public static final int FLASH_CYCLE_TICKS = 50;
 
 	public LighthouseLightBlockEntity(final BlockPos pos, final BlockState state) {
-		super(PeterwolfsBoatsAndShipsMod.LIGHTHOUSE_LIGHT_BLOCK_ENTITY, pos, state);
+		super(PeterwolfsBoatsAndShipsMod.LIGHTHOUSE_LIGHT_BLOCK_ENTITY.get(), pos, state);
 	}
 
 	public static void serverTick(final Level level, final BlockPos pos, final BlockState state, final LighthouseLightBlockEntity entity) {

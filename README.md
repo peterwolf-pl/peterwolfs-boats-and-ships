@@ -27,17 +27,17 @@ Every settlement has:
 - A **port** — spruce pier, lanterns, and docked River Skiff / Explorer Sloop vessels (Merchant Schooner on large hamlets)
 - Resident watermen who remember that port
 
-**One in ten** settlements is large and includes a stone **lighthouse** topped with a Lighthouse Light. Find one with `/locate structure peterwolfs_boats_and_ships:waterman_settlement`. Operators can spawn a test hamlet with `/pwboats spawn-settlement [small|large]` while standing on a shore.
+**One in ten** settlements is large and includes a stone **lighthouse** topped with a Lighthouse Light. Find one with `/locate structure peterwolfs_boats_and_ships:waterman_settlement`. Operators can spawn a test hamlet with `/pwboats spawn-settlement [small|large]` while standing on a shore. `/pwboats send-home [radius]` sends every waterman in range home; those without a port start looking for a settlement, bed or shore.
 
 ## Survival crafting
 
-All items craft in a **crafting table**. Recipes unlock in the recipe book when you pick up a key ingredient.
+All items craft in a **crafting table**. Recipes unlock in the recipe book when you pick up a key ingredient. Wooden barrels and sticks accept wood-type variants from packs such as **More Barrel Variants** and **More Stick Variants** (vanilla barrel is the spruce one in that family).
 
 | Result | Pattern | Materials |
 | --- | --- | --- |
-| **River Skiff** | `I P I` / `S   S` / `S S S` | 2 iron nuggets, 1 oak planks, 5 sticks |
-| **Explorer Sloop** | `C W C` / `S B S` / `O O O` | 2 chain, 1 white wool, 2 string, 1 barrel, 3 oak planks |
-| **Merchant Schooner** | `C B C` / `W W W` / `O O O` | 2 chain, 1 barrel, 3 white wool, 3 spruce planks |
+| **River Skiff** | `I P I` / `S   S` / `S S S` | 2 iron nuggets, 1 oak planks, 5 sticks (any wood stick) |
+| **Explorer Sloop** | `C W C` / `S B S` / `O O O` | 2 iron chain (or any chain), 1 white wool, 2 string, 1 wooden barrel, 3 oak planks |
+| **Merchant Schooner** | `C B C` / `W W W` / `O O O` | 2 iron chain (or any chain), 1 wooden barrel, 3 white wool, 3 spruce planks |
 | **Lighthouse Light** | `L L L` / `G G G` / `L L L` | 6 lanterns, 3 gold ingots |
 
 ```

@@ -1,11 +1,13 @@
 package com.piotrek.peterwolfsboatsandships.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.piotrek.peterwolfsboatsandships.entity.WatermanEntity;
 import com.piotrek.peterwolfsboatsandships.worldgen.WatermanSettlementPiece;
 import com.piotrek.peterwolfsboatsandships.worldgen.WatermanSettlementStructure;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import java.util.List;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -18,22 +20,64 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public final class WatermanSettlementCommands {
 	private WatermanSettlementCommands() {
 	}
 
-	public static void register() {
-		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> registerCommands(dispatcher));
-	}
-
-	private static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
+	public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
 		dispatcher.register(Commands.literal("pwboats")
 			.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 			.then(Commands.literal("spawn-settlement")
 				.executes(ctx -> spawn(ctx, false))
 				.then(Commands.literal("small").executes(ctx -> spawn(ctx, false)))
-				.then(Commands.literal("large").executes(ctx -> spawn(ctx, true)))));
+				.then(Commands.literal("large").executes(ctx -> spawn(ctx, true))))
+			.then(Commands.literal("send-home")
+				.executes(ctx -> sendHome(ctx, 64))
+				.then(Commands.argument("radius", IntegerArgumentType.integer(1, 512))
+					.executes(ctx -> sendHome(ctx, IntegerArgumentType.getInteger(ctx, "radius"))))));
+	}
+
+	private static int sendHome(CommandContext<CommandSourceStack> context, int radius) {
+		CommandSourceStack source = context.getSource();
+		ServerLevel level = source.getLevel();
+		Vec3 origin = source.getPosition();
+		AABB box = new AABB(origin, origin).inflate(radius);
+		List<WatermanEntity> watermen = level.getEntitiesOfClass(
+			WatermanEntity.class,
+			box,
+			waterman -> waterman.isAlive() && !waterman.isBaby()
+		);
+		if (watermen.isEmpty()) {
+			source.sendFailure(Component.translatable(
+				"command.peterwolfs_boats_and_ships.send_home_none",
+				radius
+			));
+			return 0;
+		}
+		int sentHome = 0;
+		int seeking = 0;
+		for (WatermanEntity waterman : watermen) {
+			if (waterman.requestReturnHome(level) == WatermanEntity.HomeOrder.RETURNING) {
+				sentHome++;
+			} else {
+				seeking++;
+			}
+		}
+		int sentHomeCount = sentHome;
+		int seekingCount = seeking;
+		source.sendSuccess(
+			() -> Component.translatable(
+				"command.peterwolfs_boats_and_ships.send_home_success",
+				sentHomeCount,
+				seekingCount,
+				radius
+			),
+			true
+		);
+		return sentHome + seeking;
 	}
 
 	private static int spawn(CommandContext<CommandSourceStack> context, boolean large) throws CommandSyntaxException {
